@@ -210,14 +210,18 @@ def generate_javascript(config):
   const TARGET_CLASS = 'target';
 
   let xDown = null;
-  document.addEventListener('touchstart', (e) => {{ xDown = e.touches[0].clientX; }});
+  document.addEventListener('touchstart', (e) => {{
+    if (currentId()) xDown = e.touches[0].clientX;
+  }});
   document.addEventListener('touchmove', (e) => {{
     if (!xDown) return;
+    e.preventDefault();
     const diff = xDown - e.touches[0].clientX;
+    if (Math.abs(diff) < 30) return;
     if (diff > 0) {{ navDirection = 'next'; clickNav('.next'); }}
     else {{ navDirection = 'prev'; clickNav('.previous'); }}
     xDown = null;
-  }});
+  }}, {{ passive: false }});
 
   const showToast = (msg) => {{
     const el = document.createElement('div');
@@ -267,6 +271,7 @@ def generate_javascript(config):
     const photo = document.getElementById(id);
     if (!photo) return;
     removeTargetClass();
+    document.body.style.overflow = 'hidden';
     photo.classList.add(TARGET_CLASS);
     if (navDirection) {{
       photo.classList.add(navDirection === 'next' ? 'slide-next' : 'slide-prev');
@@ -299,6 +304,7 @@ def generate_javascript(config):
       delete img.dataset.sizes;
     }});
     removeTargetClass();
+    document.body.style.overflow = '';
     document.title = document.querySelector('title').dataset.title;
   }};
 
