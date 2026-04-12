@@ -66,6 +66,10 @@ body {
 			height: auto;
 			display: block;
 			border-radius: var(--grid-radius);
+
+			&[src$=".gif"] {
+				image-rendering: pixelated;
+			}
 		}
 
 		& .open {
