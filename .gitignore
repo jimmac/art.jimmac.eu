@@ -1,9 +1,6 @@
-_site
-.sass-cache
-.jekyll-cache
-.jekyll-metadata
+# Build output
+public/
+
+# Editors & OS
 .nova
-vendor
 .DS_Store
-.bundle
-.gem
