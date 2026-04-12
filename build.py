@@ -362,10 +362,7 @@ def generate_picture_html(pic, index, pictures, config):
         if pic.get("title"):
             lines.append(f'            <strong class="caption-title">{html_escape(pic["title"])}</strong>')
         if pic.get("description"):
-            short = pic["description"][:150]
-            if len(pic["description"]) > 150:
-                short += "\u2026"
-            lines.append(f'            <span class="caption-desc">{inline_markdown(short)}</span>')
+            lines.append(f'            <span class="caption-desc">{inline_markdown(pic["description"])}</span>')
         if pic.get("software"):
             sw = ", ".join(pic["software"])
             lines.append(f'            <span class="caption-software">{html_escape(sw)}</span>')
@@ -388,8 +385,6 @@ def generate_picture_html(pic, index, pictures, config):
     if config.get("allow_original_download"):
         orig_name = quote(pic["source_path"].name)
         lines.append(f'          <a class="download" href="/pictures/original/{orig_name}" download="{orig_name}" title="Download">Download</a>')
-    if has_meta:
-        lines.append(f'          <a class="info-toggle" href="#" title="Toggle info">Info</a>')
     lines.append(f'          <a class="close" href="#" title="Close">Close</a>')
     lines.append(f'        </div>')
     lines.append(f'      </li>')
@@ -463,10 +458,16 @@ def generate_javascript(config):
   let navDirection = null;
   let captionTimer = null;
 
-  const showCaption = (item) => {{
+  const showCaption = (item, animate) => {{
     const caption = item.querySelector('.caption');
     if (!caption) return;
     caption.classList.remove('faded');
+    const kids = caption.querySelectorAll(':scope > *');
+    if (animate) {{
+      kids.forEach(c => {{ c.style.animation = 'none'; c.offsetHeight; c.style.animation = ''; }});
+    }} else {{
+      kids.forEach(c => c.style.animation = 'none');
+    }}
     clearTimeout(captionTimer);
     captionTimer = setTimeout(() => caption.classList.add('faded'), 2000);
   }};
@@ -557,7 +558,7 @@ def generate_javascript(config):
       img.removeAttribute('sizes');
       img.src = img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
     }}
-    showCaption(photo);
+    showCaption(photo, true);
     document.title = photo.title;
   }};
 
@@ -638,12 +639,6 @@ def generate_javascript(config):
     if (e.target.closest('.' + TARGET_CLASS + ' figure')) {{
       navDirection = 'next';
       clickNav('.next');
-      return;
-    }}
-    const info = e.target.closest('.info-toggle');
-    if (info) {{
-      e.preventDefault();
-      toggleCaption();
       return;
     }}
     const s = e.target.closest('[data-share-slug]');

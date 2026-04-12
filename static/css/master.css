@@ -196,7 +196,6 @@ body {
 
 				& .share { background-image: url(../img/icon-share.svg); }
 				& .download { background-image: url(../img/icon-download.svg); }
-				& .info-toggle { background-image: url(../img/icon-info.svg); }
 				& .close {
 					background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath fill='%23fff' d='M3.293 3.293a1 1 0 0 1 1.414 0L8 6.586l3.293-3.293a1 1 0 1 1 1.414 1.414L9.414 8l3.293 3.293a1 1 0 0 1-1.414 1.414L8 9.414l-3.293 3.293a1 1 0 0 1-1.414-1.414L6.586 8 3.293 4.707a1 1 0 0 1 0-1.414Z'/%3E%3C/svg%3E");
 					background-color: rgba(0, 0, 0, .6);
@@ -221,7 +220,6 @@ body {
 				top: auto;
 				color: #fff;
 				z-index: 21;
-				opacity: 1;
 				transition: opacity .5s ease-out;
 				pointer-events: auto;
 				margin: 6rem;
@@ -229,6 +227,7 @@ body {
 				&.faded {
 					opacity: 0;
 					pointer-events: none;
+					& > * { animation: none; }
 				}
 			}
 
@@ -241,10 +240,11 @@ body {
 				-webkit-box-decoration-break: clone;
 				padding: 4px 8px;
 				border-radius: 4px;
+				animation: caption-in var(--transition-duration) var(--ease-bounce) both;
 			}
-			& .caption-title { font-size: calc(var(--text-size) * 2); font-weight: 900; line-height: 1.8; }
-			& .caption-desc { font-size: calc(var(--text-size) * 1.5); font-weight: 400; line-height: 1.8; }
-			& .caption-software { font-size: calc(var(--text-size) * 1); line-height: 1.8; opacity: .7; }
+			& .caption-title { font-size: calc(var(--text-size) * 2); font-weight: 900; line-height: 1.8; animation-delay: var(--transition-duration); }
+			& .caption-desc { font-size: calc(var(--text-size) * 1.5); font-weight: 400; line-height: 1.8; animation-delay: calc(var(--transition-duration) + .1s); }
+			& .caption-software { font-size: calc(var(--text-size) * 1); line-height: 1.8; opacity: .7; animation-delay: calc(var(--transition-duration) + .2s); }
 
 			& .caption a { color: inherit; }
 			& .caption code {
@@ -387,6 +387,11 @@ body {
 }
 
 /* ANIMATIONS */
+
+@keyframes caption-in {
+	from { opacity: 0; translate: 0 -12px; }
+	to   { opacity: 1; translate: 0 0; }
+}
 
 @keyframes fade-in {
 	from { opacity: 0; }
