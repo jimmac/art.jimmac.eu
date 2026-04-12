@@ -11,6 +11,8 @@ import os
 import sys
 import shutil
 import re
+import subprocess
+import json
 from pathlib import Path
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -35,6 +37,8 @@ IMAGE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".bmp", ".gif", ".avif", ".heic", ".heif",
 }
 
+VIDEO_EXTENSIONS = {".mp4", ".webm"}
+
 
 CONFIG = {
     "base_url": "https://art.jimmac.eu",
@@ -55,9 +59,40 @@ CONFIG = {
 }
 
 
+def get_video_info(filepath):
+    """Get duration and dimensions of a video file via ffprobe."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_format", "-show_streams", str(filepath)],
+            capture_output=True, text=True, timeout=30,
+        )
+        info = json.loads(result.stdout)
+        for s in info.get("streams", []):
+            if s.get("codec_type") == "video":
+                w = int(s["width"])
+                h = int(s["height"])
+                duration = float(info.get("format", {}).get("duration", s.get("duration", "0")))
+                return w, h, duration
+    except Exception:
+        pass
+    return 640, 640, 0.0
+
+
+def extract_video_thumbnail(src_path, out_path, max_dims, duration):
+    """Extract a thumbnail from the middle of a video."""
+    timestamp = duration / 2 if duration > 0 else 0
+    scale = f"scale='min({max_dims[0]},iw)':'min({max_dims[1]},ih)':force_original_aspect_ratio=decrease"
+    subprocess.run(
+        ["ffmpeg", "-y", "-ss", str(timestamp), "-i", str(src_path),
+         "-vframes", "1", "-vf", scale, str(out_path)],
+        capture_output=True, timeout=30,
+    )
+
+
 def normalize_extensions():
     for path in SOURCE_DIR.iterdir():
-        if path.suffix.lower() in IMAGE_EXTENSIONS and path.suffix != path.suffix.lower():
+        if path.suffix.lower() in (IMAGE_EXTENSIONS | VIDEO_EXTENSIONS) and path.suffix != path.suffix.lower():
             new_path = path.with_suffix(path.suffix.lower())
             if path != new_path:
                 path.rename(new_path)
@@ -91,46 +126,94 @@ def slugify(name):
 
 def scan_and_sort_pictures():
     """Scan source directory and return sorted picture list."""
-    image_files = sorted(
+    all_files = sorted(
         p for p in SOURCE_DIR.iterdir()
-        if p.suffix.lower() in IMAGE_EXTENSIONS
+        if p.suffix.lower() in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
     )
-    if not image_files:
-        print("   No image files found!")
+    if not all_files:
+        print("   No image/video files found!")
         sys.exit(1)
 
     pictures = []
-    for filepath in image_files:
+    for filepath in all_files:
         slug = slugify(filepath.name)
-        exif_date = get_exif_date(filepath)
-        width, height = get_dimensions(filepath)
-        pictures.append({
-            "slug": slug,
-            "filename": f"{slug}.webp",
-            "width": width,
-            "height": height,
-            "exif_date": exif_date,
-            "source_path": filepath,
-        })
+        suffix = filepath.suffix.lower()
+        is_video = suffix in VIDEO_EXTENSIONS
+
+        if is_video:
+            width, height, duration = get_video_info(filepath)
+            exif_date = datetime.fromtimestamp(os.path.getmtime(filepath))
+            pictures.append({
+                "slug": slug,
+                "filename": f"{slug}.webp",
+                "video_src": f"{slug}{suffix}",
+                "width": width,
+                "height": height,
+                "duration": duration,
+                "exif_date": exif_date,
+                "source_path": filepath,
+                "is_video": True,
+            })
+        else:
+            exif_date = get_exif_date(filepath)
+            width, height = get_dimensions(filepath)
+            ext = ".gif" if suffix == ".gif" else ".webp"
+            pictures.append({
+                "slug": slug,
+                "filename": f"{slug}{ext}",
+                "width": width,
+                "height": height,
+                "exif_date": exif_date,
+                "source_path": filepath,
+                "is_video": False,
+            })
 
     pictures.sort(key=lambda p: p["exif_date"], reverse=True)
     return pictures
 
 
-def process_image(src_path, slug):
+def process_image(pic):
+    src_path = pic["source_path"]
+    slug = pic["slug"]
+
+    if pic.get("is_video"):
+        duration = pic.get("duration", 0)
+        suffix = src_path.suffix.lower()
+        # Copy video to large/
+        large_dir = OUTPUT_DIR / "pictures" / "large"
+        large_dir.mkdir(parents=True, exist_ok=True)
+        video_dst = large_dir / f"{slug}{suffix}"
+        if not video_dst.exists() or video_dst.stat().st_mtime < src_path.stat().st_mtime:
+            shutil.copy2(src_path, video_dst)
+        # Generate thumbnail for grid
+        for size_name, max_dims in SIZES.items():
+            out_dir = OUTPUT_DIR / "pictures" / size_name
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"{slug}.webp"
+            if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
+                continue
+            extract_video_thumbnail(src_path, out_path, max_dims, duration)
+        return
+
+    is_gif = src_path.suffix.lower() == ".gif"
     for size_name, max_dims in SIZES.items():
         out_dir = OUTPUT_DIR / "pictures" / size_name
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"{slug}.webp"
 
-        if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
-            continue
-
-        with Image.open(src_path) as img:
-            if img.mode not in ("RGB", "RGBA"):
-                img = img.convert("RGBA" if img.mode in ("LA", "PA") or "transparency" in img.info else "RGB")
-            img.thumbnail(max_dims, Image.Resampling.LANCZOS)
-            img.save(out_path, "WEBP", quality=85)
+        if is_gif:
+            out_path = out_dir / f"{slug}.gif"
+            if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
+                continue
+            shutil.copy2(src_path, out_path)
+        else:
+            out_path = out_dir / f"{slug}.webp"
+            if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
+                continue
+            with Image.open(src_path) as img:
+                if img.mode not in ("RGB", "RGBA"):
+                    img = img.convert("RGBA" if img.mode in ("LA", "PA") or "transparency" in img.info else "RGB")
+                img.thumbnail(max_dims, Image.Resampling.LANCZOS)
+                img.save(out_path, "WEBP", quality=85)
 
 
 def copy_static_assets():
@@ -165,9 +248,15 @@ def generate_picture_html(pic, index, pictures, config):
     slug = pic["slug"]
     safe_name = quote(pic["filename"])
     w, h = pic["width"], pic["height"]
+    is_video = pic.get("is_video", False)
+
+    video_attr = ""
+    if is_video:
+        video_src = quote(pic["video_src"])
+        video_attr = f' data-video="/pictures/large/{video_src}"'
 
     lines = [
-        f'      <li class="item" id="id-{slug}" title="{slug}">',
+        f'      <li class="item" id="id-{slug}" title="{slug}"{video_attr}>',
         f'        <figure>',
         f'          <img loading="lazy"',
         f'               src="/pictures/thumbnail/{safe_name}"',
@@ -305,30 +394,38 @@ def generate_javascript(config):
       }}, {{ once: true }});
       navDirection = null;
     }}
+    const videoSrc = photo.dataset.video;
     const img = photo.querySelector('img');
     if (img) {{
       const tint = avgColor(img);
       if (tint) photo.style.backgroundColor = tint;
+      updateMeta(photo.title, img.src);
+    }}
+    if (videoSrc) {{
+      const video = document.createElement('video');
+      video.src = videoSrc;
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.className = 'lightbox-video';
+      const figure = photo.querySelector('figure');
+      if (figure) {{
+        if (img) img.style.display = 'none';
+        figure.appendChild(video);
+      }}
+    }} else if (img) {{
       img.dataset.thumb = img.src;
       img.dataset.srcset = img.getAttribute('srcset') || '';
       img.dataset.sizes = img.getAttribute('sizes') || '';
       img.removeAttribute('srcset');
       img.removeAttribute('sizes');
       img.src = img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
-      updateMeta(photo.title, img.dataset.thumb);
     }}
     document.title = photo.title;
   }};
 
   const closePhoto = () => {{
-    document.querySelectorAll('.' + TARGET_CLASS + ' img[data-thumb]').forEach(img => {{
-      img.src = img.dataset.thumb;
-      if (img.dataset.srcset) img.setAttribute('srcset', img.dataset.srcset);
-      if (img.dataset.sizes) img.setAttribute('sizes', img.dataset.sizes);
-      delete img.dataset.thumb;
-      delete img.dataset.srcset;
-      delete img.dataset.sizes;
-    }});
     removeTargetClass();
     document.body.style.overflow = '';
     document.title = document.querySelector('title').dataset.title;
@@ -337,6 +434,22 @@ def generate_javascript(config):
 
   const removeTargetClass = () => {{
     document.querySelectorAll('.' + TARGET_CLASS).forEach(el => {{
+      const video = el.querySelector('.lightbox-video');
+      if (video) {{
+        video.pause();
+        video.remove();
+        const img = el.querySelector('img');
+        if (img) img.style.display = '';
+      }}
+      const img = el.querySelector('img[data-thumb]');
+      if (img) {{
+        img.src = img.dataset.thumb;
+        if (img.dataset.srcset) img.setAttribute('srcset', img.dataset.srcset);
+        if (img.dataset.sizes) img.setAttribute('sizes', img.dataset.sizes);
+        delete img.dataset.thumb;
+        delete img.dataset.srcset;
+        delete img.dataset.sizes;
+      }}
       el.style.backgroundColor = '';
       el.classList.remove(TARGET_CLASS);
     }});
@@ -626,7 +739,7 @@ def main():
     for i, pic in enumerate(pictures):
         sys.stdout.write(f"\r   Processing {i+1}/{len(pictures)}: {pic['source_path'].name}...")
         sys.stdout.flush()
-        process_image(pic["source_path"], pic["slug"])
+        process_image(pic)
     print("\n   Done!")
 
     if config.get("allow_original_download"):
