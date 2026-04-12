@@ -37,7 +37,7 @@ IMAGE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".bmp", ".gif", ".avif", ".heic", ".heif",
 }
 
-VIDEO_EXTENSIONS = {".mp4", ".webm"}
+VIDEO_EXTENSIONS = {".mp4", ".webm", ".avi", ".mov"}
 
 
 CONFIG = {
@@ -143,10 +143,11 @@ def scan_and_sort_pictures():
         if is_video:
             width, height, duration = get_video_info(filepath)
             exif_date = datetime.fromtimestamp(os.path.getmtime(filepath))
+            video_ext = suffix if suffix in (".mp4", ".webm") else ".mp4"
             pictures.append({
                 "slug": slug,
                 "filename": f"{slug}.webp",
-                "video_src": f"{slug}{suffix}",
+                "video_src": f"{slug}{video_ext}",
                 "width": width,
                 "height": height,
                 "duration": duration,
@@ -179,12 +180,22 @@ def process_image(pic):
     if pic.get("is_video"):
         duration = pic.get("duration", 0)
         suffix = src_path.suffix.lower()
-        # Copy video to large/
+        needs_transcode = suffix in (".avi", ".mov")
+        video_ext = ".mp4" if needs_transcode else suffix
+        # Copy or transcode video to large/
         large_dir = OUTPUT_DIR / "pictures" / "large"
         large_dir.mkdir(parents=True, exist_ok=True)
-        video_dst = large_dir / f"{slug}{suffix}"
+        video_dst = large_dir / f"{slug}{video_ext}"
         if not video_dst.exists() or video_dst.stat().st_mtime < src_path.stat().st_mtime:
-            shutil.copy2(src_path, video_dst)
+            if needs_transcode:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(src_path),
+                     "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                     "-c:a", "aac", "-movflags", "+faststart", str(video_dst)],
+                    capture_output=True, timeout=300,
+                )
+            else:
+                shutil.copy2(src_path, video_dst)
         # Generate thumbnail for grid
         for size_name, max_dims in SIZES.items():
             out_dir = OUTPUT_DIR / "pictures" / size_name
