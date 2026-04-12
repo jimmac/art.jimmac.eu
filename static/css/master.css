@@ -15,6 +15,8 @@
 	--nav-width: 80px;
 	--link-offset: 24px;
 	--font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+	--ease-bounce: cubic-bezier(.34, 1.56, .64, 1);
+	--transition-duration: .3s;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -64,8 +66,7 @@ body {
 			display: block;
 		}
 
-		& .open,
-		& .close {
+		& .open {
 			position: absolute;
 			inset: 0;
 			text-indent: 150%;
@@ -87,7 +88,6 @@ body {
 			}
 		}
 
-		& .close     { display: none; cursor: zoom-out; }
 		& .previous  { display: none; }
 		& .next      { display: none; }
 		& .actions   { display: none; }
@@ -109,6 +109,7 @@ body {
 			& figure {
 				width: 100%;
 				height: 100%;
+				cursor: pointer;
 			}
 
 			& img {
@@ -118,7 +119,6 @@ body {
 			}
 
 			& .open  { display: none; }
-			& .close { display: block; }
 
 			& .previous,
 			& .next {
@@ -187,6 +187,15 @@ body {
 
 				& .share { background-image: url(../img/icon-share.svg); }
 				& .download { background-image: url(../img/icon-download.svg); }
+				& .close {
+					background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath fill='%23fff' d='M3.293 3.293a1 1 0 0 1 1.414 0L8 6.586l3.293-3.293a1 1 0 1 1 1.414 1.414L9.414 8l3.293 3.293a1 1 0 0 1-1.414 1.414L8 9.414l-3.293 3.293a1 1 0 0 1-1.414-1.414L6.586 8 3.293 4.707a1 1 0 0 1 0-1.414Z'/%3E%3C/svg%3E");
+					background-color: rgba(0, 0, 0, .6);
+					outline: 2px solid rgba(255, 255, 255, .5);
+					outline-offset: -2px;
+
+					&:hover { background-color: rgba(0, 0, 0, .75); }
+					&:active { background-color: rgba(0, 0, 0, .5); }
+				}
 			}
 		}
 	}
@@ -322,10 +331,23 @@ body {
 	to   { opacity: 1; }
 }
 
+@keyframes slide-from-right {
+	from { translate: 30% 0; opacity: 0; }
+	to   { translate: 0 0; opacity: 1; }
+}
+
+@keyframes slide-from-left {
+	from { translate: -30% 0; opacity: 0; }
+	to   { translate: 0 0; opacity: 1; }
+}
+
 @keyframes toast {
 	0%   { opacity: 0; translate: -50% 16px; }
 	15%  { opacity: 1; translate: -50% 0; }
 	85%  { opacity: 1; translate: -50% 0; }
 	100% { opacity: 0; translate: -50% -8px; }
 }
+
+.slide-next figure { animation: slide-from-right var(--transition-duration) var(--ease-bounce); }
+.slide-prev figure { animation: slide-from-left var(--transition-duration) var(--ease-bounce); }
 

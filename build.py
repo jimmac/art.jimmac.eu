@@ -179,7 +179,6 @@ def generate_picture_html(pic, index, pictures, config):
         f'               width="{w}" height="{h}" alt="{slug}">',
         f'        </figure>',
         f'        <a class="open" href="#{slug}" data-target="id-{slug}">Open</a>',
-        f'        <a class="close" href="#">Close</a>',
     ]
 
     if index > 0:
@@ -196,6 +195,7 @@ def generate_picture_html(pic, index, pictures, config):
     if config.get("allow_original_download"):
         orig_name = quote(pic["source_path"].name)
         lines.append(f'          <a class="download" href="/pictures/original/{orig_name}" download="{orig_name}" title="Download">Download</a>')
+    lines.append(f'          <a class="close" href="#" title="Close">Close</a>')
     lines.append(f'        </div>')
     lines.append(f'      </li>')
 
@@ -214,8 +214,8 @@ def generate_javascript(config):
   document.addEventListener('touchmove', (e) => {{
     if (!xDown) return;
     const diff = xDown - e.touches[0].clientX;
-    if (diff > 0) clickNav('.next');
-    else clickNav('.previous');
+    if (diff > 0) {{ navDirection = 'next'; clickNav('.next'); }}
+    else {{ navDirection = 'prev'; clickNav('.previous'); }}
     xDown = null;
   }});
 
@@ -261,11 +261,20 @@ def generate_javascript(config):
     }} catch (e) {{ return null; }}
   }};
 
+  let navDirection = null;
+
   const openPhoto = (id) => {{
     const photo = document.getElementById(id);
     if (!photo) return;
     removeTargetClass();
     photo.classList.add(TARGET_CLASS);
+    if (navDirection) {{
+      photo.classList.add(navDirection === 'next' ? 'slide-next' : 'slide-prev');
+      photo.addEventListener('animationend', () => {{
+        photo.classList.remove('slide-next', 'slide-prev');
+      }}, {{ once: true }});
+      navDirection = null;
+    }}
     const img = photo.querySelector('img');
     if (img) {{
       const tint = avgColor(img);
@@ -310,21 +319,34 @@ def generate_javascript(config):
 
   document.addEventListener('keydown', (e) => {{
     if (e.key === 'Escape')     {{ location.hash = ''; e.preventDefault(); }}
-    if (e.key === 'ArrowRight') {{ clickNav('.next'); e.preventDefault(); }}
-    if (e.key === 'ArrowLeft')  {{ clickNav('.previous'); e.preventDefault(); }}
+    if (e.key === 'ArrowRight') {{ navDirection = 'next'; clickNav('.next'); e.preventDefault(); }}
+    if (e.key === 'ArrowLeft')  {{ navDirection = 'prev'; clickNav('.previous'); e.preventDefault(); }}
   }});
 
   document.addEventListener('click', (e) => {{
+    const nav = e.target.closest('.previous[href], .next[href]');
+    if (nav) {{
+      e.preventDefault();
+      navDirection = nav.classList.contains('previous') ? 'prev' : 'next';
+      location.hash = nav.getAttribute('href').slice(1);
+      return;
+    }}
     const t = e.target.closest('[data-target][href]');
     if (t) {{
       e.preventDefault();
       location.hash = t.getAttribute('href').slice(1);
       return;
     }}
-    if (e.target.matches('.close[href]')) {{
+    const c = e.target.closest('.close[href]');
+    if (c) {{
       e.preventDefault();
       history.replaceState(null, '', location.pathname);
       closePhoto();
+      return;
+    }}
+    if (e.target.closest('.' + TARGET_CLASS + ' figure')) {{
+      navDirection = 'next';
+      clickNav('.next');
       return;
     }}
     const s = e.target.closest('[data-share-slug]');
