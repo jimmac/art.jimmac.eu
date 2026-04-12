@@ -1,19 +1,15 @@
 base_url = "https://art.jimmac.eu"
 title = "art.jimmac.eu"
 description = "Art by @jimmac"
-compile_sass = false
-build_search_index = false
-minify_html = false
-generate_feeds = true
-feed_filenames = ["feed.xml"]
 
-[extra]
 author_name = "Jakub Steiner"
 author_email = "jimmac@gmail.com"
 author_website = "https://jimmac.eu"
+
 allow_indexing = true
 allow_image_sharing = true
 allow_original_download = false
+
 mastodon_username = "jimmac"
 github_username = "jimmac"
 instagram_username = "jimmacfx"
