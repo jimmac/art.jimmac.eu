@@ -232,7 +232,7 @@ def generate_javascript(config):
   }};
 
   const shareImage = (title, slug) => {{
-    const url = window.location.origin + '/#' + slug;
+    const url = window.location.origin + '/' + slug + '/';
     if (navigator.canShare) {{
       navigator.share({{ title, url }});
     }} else {{
@@ -267,6 +267,34 @@ def generate_javascript(config):
 
   let navDirection = null;
 
+  const setMeta = (prop, content) => {{
+    const el = document.querySelector('meta[property="' + prop + '"],meta[name="' + prop + '"]');
+    if (el) el.setAttribute('content', content);
+  }};
+
+  const updateMeta = (slug, imgUrl) => {{
+    const url = window.location.origin + '/' + slug + '/';
+    setMeta('og:title', slug);
+    setMeta('og:url', url);
+    setMeta('og:image', imgUrl);
+    setMeta('twitter:title', slug);
+    setMeta('twitter:image', imgUrl);
+    setMeta('thumbnail', imgUrl);
+  }};
+
+  const resetMeta = () => {{
+    const t = document.querySelector('title');
+    const title = t.dataset.title;
+    const origin = window.location.origin;
+    const preview = origin + '/social-preview.png';
+    setMeta('og:title', title);
+    setMeta('og:url', origin + '/');
+    setMeta('og:image', preview);
+    setMeta('twitter:title', title);
+    setMeta('twitter:image', preview);
+    setMeta('thumbnail', preview);
+  }};
+
   const openPhoto = (id) => {{
     const photo = document.getElementById(id);
     if (!photo) return;
@@ -290,6 +318,7 @@ def generate_javascript(config):
       img.removeAttribute('srcset');
       img.removeAttribute('sizes');
       img.src = img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
+      updateMeta(photo.title, img.dataset.thumb);
     }}
     document.title = photo.title;
   }};
@@ -306,6 +335,7 @@ def generate_javascript(config):
     removeTargetClass();
     document.body.style.overflow = '';
     document.title = document.querySelector('title').dataset.title;
+    resetMeta();
   }};
 
   const removeTargetClass = () => {{
@@ -469,6 +499,40 @@ def generate_404_html(config):
 """
 
 
+def generate_picture_stubs(pictures, config):
+    """Generate lightweight stub pages for social media sharing."""
+    base_url = config.get("base_url", "")
+    site_title = config.get("title", "art.jimmac.eu")
+    description = config.get("description", "")
+
+    for pic in pictures:
+        slug = pic["slug"]
+        safe_name = quote(pic["filename"])
+        og_image = f"{base_url}/pictures/large/{safe_name}"
+        out_dir = OUTPUT_DIR / slug
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "index.html").write_text(f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{slug} - {site_title}</title>
+  <meta property="og:title" content="{slug}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{base_url}/{slug}/">
+  <meta property="og:image" content="{og_image}">
+  <meta property="og:site_name" content="{site_title}">
+  <meta property="og:description" content="{description}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{slug}">
+  <meta name="twitter:description" content="{description}">
+  <meta name="twitter:image" content="{og_image}">
+  <script>location.replace('/#' + '{slug}');</script>
+</head>
+<body></body>
+</html>
+""")
+
+
 def generate_feed_xml(pictures, config):
     """Generate an Atom feed."""
     site_title = config.get("title", "art.jimmac.eu")
@@ -495,7 +559,7 @@ def generate_feed_xml(pictures, config):
         slug = pic["slug"]
         safe_name = quote(pic["filename"])
         date = pic["exif_date"].strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        entry_url = f"{base_url}/#{slug}"
+        entry_url = f"{base_url}/{slug}/"
         img_url = f"{base_url}/pictures/large/{safe_name}"
 
         entry_author = ""
@@ -582,6 +646,10 @@ def main():
 
     print("8. Generating feed.xml...")
     (OUTPUT_DIR / "feed.xml").write_text(generate_feed_xml(pictures, config))
+
+    print("9. Generating share stubs...")
+    generate_picture_stubs(pictures, config)
+    print(f"   Generated {len(pictures)} stubs")
 
     print(f"\n=== Build complete: {len(pictures)} pictures ===")
 
