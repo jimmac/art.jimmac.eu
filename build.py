@@ -124,6 +124,76 @@ def slugify(name):
     return slug
 
 
+def inline_markdown(text):
+    """Convert inline markdown (links, code, bold, italic) to HTML."""
+    text = html_escape(text)
+    # inline code: `code`
+    text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+    # links: [text](url)
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+    # bold: **text** or __text__
+    text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'__([^_]+)__', r'<strong>\1</strong>', text)
+    # italic: *text* or _text_
+    text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', text)
+    text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'<em>\1</em>', text)
+    return text
+
+
+def parse_sidecar(sidecar_path):
+    """Parse a markdown sidecar file with optional YAML-like front matter."""
+    text = sidecar_path.read_text(encoding="utf-8")
+    meta = {}
+    body = text
+
+    # Extract front matter between --- delimiters
+    if text.startswith("---"):
+        parts = text.split("---", 2)
+        if len(parts) >= 3:
+            current_key = None
+            for line in parts[1].strip().splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                # List item (  - value)
+                if stripped.startswith("- ") and current_key:
+                    meta.setdefault(current_key, []).append(stripped[2:].strip())
+                elif ":" in stripped:
+                    key, val = stripped.split(":", 1)
+                    key = key.strip()
+                    val = val.strip()
+                    current_key = key
+                    if val:
+                        meta[key] = val
+            body = parts[2].strip()
+
+    # Extract title from first # heading, rest is description
+    title = None
+    description_lines = []
+    for line in body.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("# ") and title is None:
+            title = stripped[2:].strip()
+        elif title is not None:
+            description_lines.append(line)
+
+    description = "\n".join(description_lines).strip()
+
+    # Normalize software to list
+    software = meta.get("software", [])
+    if isinstance(software, str):
+        software = [software]
+
+    return {
+        "title": title,
+        "description": description if description else None,
+        "author": meta.get("author"),
+        "software": software,
+        "tags": meta.get("tags", []) if isinstance(meta.get("tags"), list) else [meta["tags"]] if "tags" in meta else [],
+        "has_metadata": True,
+    }
+
+
 def scan_and_sort_pictures():
     """Scan source directory and return sorted picture list."""
     all_files = sorted(
@@ -168,6 +238,13 @@ def scan_and_sort_pictures():
                 "source_path": filepath,
                 "is_video": False,
             })
+
+        # Check for sidecar metadata file
+        sidecar_path = filepath.with_suffix(".md")
+        if sidecar_path.exists():
+            pictures[-1].update(parse_sidecar(sidecar_path))
+        else:
+            pictures[-1].update({"has_metadata": False, "title": None, "description": None})
 
     pictures.sort(key=lambda p: p["exif_date"], reverse=True)
     return pictures
@@ -260,23 +337,42 @@ def generate_picture_html(pic, index, pictures, config):
     safe_name = quote(pic["filename"])
     w, h = pic["width"], pic["height"]
     is_video = pic.get("is_video", False)
+    has_meta = pic.get("has_metadata", False)
+    display_name = html_escape(pic.get("title") or slug)
 
-    video_attr = ""
+    extra_attrs = ""
     if is_video:
         video_src = quote(pic["video_src"])
-        video_attr = f' data-video="/pictures/large/{video_src}"'
+        extra_attrs += f' data-video="/pictures/large/{video_src}"'
+    if has_meta:
+        extra_attrs += ' data-has-meta="true"'
 
     lines = [
-        f'      <li class="item" id="id-{slug}" title="{slug}"{video_attr}>',
+        f'      <li class="item" id="id-{slug}" title="{display_name}"{extra_attrs}>',
         f'        <figure>',
         f'          <img loading="lazy"',
         f'               src="/pictures/thumbnail/{safe_name}"',
         f'               srcset="/pictures/thumbnail/{safe_name} 640w, /pictures/large/{safe_name} 2048w"',
         f'               sizes="(min-width: 900px) 33vw, (min-width: 600px) 50vw, 100vw"',
-        f'               width="{w}" height="{h}" alt="{slug}">',
-        f'        </figure>',
-        f'        <a class="open" href="#{slug}" data-target="id-{slug}">Open</a>',
+        f'               width="{w}" height="{h}" alt="{display_name}">',
     ]
+
+    if has_meta:
+        lines.append(f'          <figcaption class="caption">')
+        if pic.get("title"):
+            lines.append(f'            <strong class="caption-title">{html_escape(pic["title"])}</strong>')
+        if pic.get("description"):
+            short = pic["description"][:150]
+            if len(pic["description"]) > 150:
+                short += "\u2026"
+            lines.append(f'            <span class="caption-desc">{inline_markdown(short)}</span>')
+        if pic.get("software"):
+            sw = ", ".join(pic["software"])
+            lines.append(f'            <span class="caption-software">{html_escape(sw)}</span>')
+        lines.append(f'          </figcaption>')
+
+    lines.append(f'        </figure>')
+    lines.append(f'        <a class="open" href="#{slug}" data-target="id-{slug}">Open</a>')
 
     if index > 0:
         ps = pictures[index - 1]["slug"]
@@ -288,10 +384,12 @@ def generate_picture_html(pic, index, pictures, config):
 
     lines.append(f'        <div class="actions">')
     if config.get("allow_image_sharing"):
-        lines.append(f'          <a class="share" href="#" data-share-slug="{slug}" data-share-title="{slug}" title="Share">Share</a>')
+        lines.append(f'          <a class="share" href="#" data-share-slug="{slug}" data-share-title="{display_name}" title="Share">Share</a>')
     if config.get("allow_original_download"):
         orig_name = quote(pic["source_path"].name)
         lines.append(f'          <a class="download" href="/pictures/original/{orig_name}" download="{orig_name}" title="Download">Download</a>')
+    if has_meta:
+        lines.append(f'          <a class="info-toggle" href="#" title="Toggle info">Info</a>')
     lines.append(f'          <a class="close" href="#" title="Close">Close</a>')
     lines.append(f'        </div>')
     lines.append(f'      </li>')
@@ -363,6 +461,32 @@ def generate_javascript(config):
   }};
 
   let navDirection = null;
+  let captionTimer = null;
+
+  const showCaption = (item) => {{
+    const caption = item.querySelector('.caption');
+    if (!caption) return;
+    caption.classList.remove('faded');
+    clearTimeout(captionTimer);
+    captionTimer = setTimeout(() => caption.classList.add('faded'), 2000);
+  }};
+
+  const hideCaption = (item) => {{
+    const caption = item.querySelector('.caption');
+    if (!caption) return;
+    caption.classList.add('faded');
+    clearTimeout(captionTimer);
+  }};
+
+  const toggleCaption = () => {{
+    const id = currentId();
+    if (!id) return;
+    const item = document.getElementById(id);
+    if (!item) return;
+    const caption = item.querySelector('.caption');
+    if (!caption) return;
+    caption.classList.contains('faded') ? showCaption(item) : hideCaption(item);
+  }};
 
   const setMeta = (prop, content) => {{
     const el = document.querySelector('meta[property="' + prop + '"],meta[name="' + prop + '"]');
@@ -433,10 +557,12 @@ def generate_javascript(config):
       img.removeAttribute('sizes');
       img.src = img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
     }}
+    showCaption(photo);
     document.title = photo.title;
   }};
 
   const closePhoto = () => {{
+    clearTimeout(captionTimer);
     removeTargetClass();
     document.body.style.overflow = '';
     document.title = document.querySelector('title').dataset.title;
@@ -478,6 +604,14 @@ def generate_javascript(config):
     if (e.key === 'Escape')     {{ location.hash = ''; e.preventDefault(); }}
     if (e.key === 'ArrowRight') {{ navDirection = 'next'; clickNav('.next'); e.preventDefault(); }}
     if (e.key === 'ArrowLeft')  {{ navDirection = 'prev'; clickNav('.previous'); e.preventDefault(); }}
+    if (e.key === 'i' || e.key === 'I') {{ toggleCaption(); e.preventDefault(); }}
+  }});
+
+  document.addEventListener('mousemove', () => {{
+    const id = currentId();
+    if (!id) return;
+    const item = document.getElementById(id);
+    if (item) showCaption(item);
   }});
 
   document.addEventListener('click', (e) => {{
@@ -504,6 +638,12 @@ def generate_javascript(config):
     if (e.target.closest('.' + TARGET_CLASS + ' figure')) {{
       navDirection = 'next';
       clickNav('.next');
+      return;
+    }}
+    const info = e.target.closest('.info-toggle');
+    if (info) {{
+      e.preventDefault();
+      toggleCaption();
       return;
     }}
     const s = e.target.closest('[data-share-slug]');
@@ -631,6 +771,8 @@ def generate_picture_stubs(pictures, config):
 
     for pic in pictures:
         slug = pic["slug"]
+        display_name = html_escape(pic.get("title") or slug)
+        pic_desc = html_escape(pic.get("description") or description)
         safe_name = quote(pic["filename"])
         og_image = f"{base_url}/pictures/large/{safe_name}"
         out_dir = OUTPUT_DIR / slug
@@ -639,16 +781,16 @@ def generate_picture_stubs(pictures, config):
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{slug} - {site_title}</title>
-  <meta property="og:title" content="{slug}">
+  <title>{display_name} - {site_title}</title>
+  <meta property="og:title" content="{display_name}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{base_url}/{slug}/">
   <meta property="og:image" content="{og_image}">
   <meta property="og:site_name" content="{site_title}">
-  <meta property="og:description" content="{description}">
+  <meta property="og:description" content="{pic_desc}">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{slug}">
-  <meta name="twitter:description" content="{description}">
+  <meta name="twitter:title" content="{display_name}">
+  <meta name="twitter:description" content="{pic_desc}">
   <meta name="twitter:image" content="{og_image}">
   <script>location.replace('/#' + '{slug}');</script>
 </head>
@@ -681,10 +823,15 @@ def generate_feed_xml(pictures, config):
     entries = []
     for pic in pictures[:20]:
         slug = pic["slug"]
+        display_name = html_escape(pic.get("title") or slug)
         safe_name = quote(pic["filename"])
         date = pic["exif_date"].strftime("%Y-%m-%dT%H:%M:%S+00:00")
         entry_url = f"{base_url}/{slug}/"
         img_url = f"{base_url}/pictures/large/{safe_name}"
+
+        desc_html = ""
+        if pic.get("description"):
+            desc_html = f"<p>{html_escape(pic['description'])}</p>"
 
         entry_author = ""
         if author_name:
@@ -698,12 +845,12 @@ def generate_feed_xml(pictures, config):
             entry_author = "    <author>\n" + "\n".join(a_parts) + "\n    </author>\n"
 
         entries.append(f"""  <entry>
-    <title type="html">{html_escape(slug)}</title>
-    <link href="{entry_url}" rel="alternate" type="text/html" title="{html_escape(slug)}" />
+    <title type="html">{display_name}</title>
+    <link href="{entry_url}" rel="alternate" type="text/html" title="{display_name}" />
     <published>{date}</published>
     <updated>{date}</updated>
     <id>{entry_url}</id>
-    <content type="html"><![CDATA[<figure><a href="{entry_url}"><img src="{img_url}" alt="{html_escape(slug)}" /></a></figure>]]></content>
+    <content type="html"><![CDATA[{desc_html}<figure><a href="{entry_url}"><img src="{img_url}" alt="{display_name}" /></a></figure>]]></content>
 {entry_author}    <media:thumbnail xmlns:media="http://search.yahoo.com/mrss/" url="{img_url}" />
     <media:content medium="image" url="{img_url}" xmlns:media="http://search.yahoo.com/mrss/" />
   </entry>""")
