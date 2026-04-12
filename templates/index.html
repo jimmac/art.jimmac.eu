@@ -4,44 +4,27 @@
 <html class="notranslate" translate="no">
 {% include "head.html" %}
 <body>
-	<ul class="grid" id="target">
-		{% set photo_data = load_data(path="data/photos.json") %}
-		{% if config.extra.default_reverse_sort %}
-			{% set photos = photo_data.photos | reverse %}
-		{% else %}
-			{% set photos = photo_data.photos %}
-		{% endif %}
+	{% set photo_data = load_data(path="data/photos.json") %}
+	{% set photos = photo_data.photos %}
+	<ul class="grid" id="grid">
 		{% for p in photos %}
-			{{ photo_macros::photo(photo=p, current_slug="", config=config) }}
+		{{ photo_macros::photo(photo=p, current_slug="", config=config) }}
 		{% endfor %}
-		</ul>
-		<ul class="links bottom">
-			{% if config.extra.allow_order_sort_change %}
-			<li class="sort"><a rel="me" href="#" title="Reverse sort order">Sort</a></li>
-			{% endif %}
-			{% if config.extra.show_rss_feed %}
-			<li class="rss"><a rel="alternate" type="application/rss+xml" href="{{ config.base_url }}/feed.xml" title="RSS Feed">RSS Feed</a></li>
-			{% endif %}
-			{% if config.extra.show_official_github %}
-			<li class="github"><a rel="me" href="https://github.com/waschinski/photo-stream" title="Fork on Github">Github</a></li>
-			{% endif %}
-			{% if config.extra.twitter_username %}
-			<li class="twitter"><a rel="me" href="https://twitter.com/{{ config.extra.twitter_username }}" title="@{{ config.extra.twitter_username }} on Twitter">Twitter</a></li>
-			{% endif %}
-			{% if config.extra.mastodon_username %}
-			<li class="mastodon"><a rel="me" href="https://mastodon.social/@{{ config.extra.mastodon_username }}" title="@{{ config.extra.mastodon_username }} on Mastodon">Mastodon</a></li>
-			{% endif %}
-			{% if config.extra.github_username %}
-			<li class="github"><a rel="me" href="https://github.com/{{ config.extra.github_username }}" title="@{{ config.extra.github_username }} on Github">Github</a></li>
-			{% endif %}
-			{% if config.extra.instagram_username %}
-			<li class="instagram"><a rel="me" href="https://instagram.com/{{ config.extra.instagram_username }}" title="@{{ config.extra.instagram_username }} on Instagram">Instagram</a></li>
-			{% endif %}
-			{% if config.extra.custom_link_url and config.extra.custom_link_name %}
-			<li class="link"><a rel="me" href="{{ config.extra.custom_link_url }}" title="{{ config.extra.custom_link_name }}">{{ config.extra.custom_link_name }}</a></li>
-			{% endif %}
-		</ul>
-		{% include "javascript.html" %}
-		<script type="text/javascript" src="/js/toastify.js"></script>
+	</ul>
+	<ul class="links">
+		{% if config.extra.mastodon_username %}
+		<li class="mastodon"><a rel="me" href="https://mastodon.social/@{{ config.extra.mastodon_username }}" title="@{{ config.extra.mastodon_username }} on Mastodon">Mastodon</a></li>
+		{% endif %}
+		{% if config.extra.github_username %}
+		<li class="github"><a rel="me" href="https://github.com/{{ config.extra.github_username }}" title="@{{ config.extra.github_username }} on Github">Github</a></li>
+		{% endif %}
+		{% if config.extra.instagram_username %}
+		<li class="instagram"><a rel="me" href="https://instagram.com/{{ config.extra.instagram_username }}" title="@{{ config.extra.instagram_username }} on Instagram">Instagram</a></li>
+		{% endif %}
+		{% if config.extra.custom_link_url and config.extra.custom_link_name %}
+		<li class="link"><a rel="me" href="{{ config.extra.custom_link_url }}" title="{{ config.extra.custom_link_name }}">{{ config.extra.custom_link_name }}</a></li>
+		{% endif %}
+	</ul>
+	{% include "javascript.html" %}
 </body>
 </html>

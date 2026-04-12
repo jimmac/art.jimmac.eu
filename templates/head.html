@@ -25,17 +25,16 @@
 	<meta property="og:description" content="{{ config.description }}">
 	<meta name="thumbnail" content="{{ og_image }}">
 	<meta name="twitter:card" content="summary_large_image">
-	<meta name="twitter:site" content="{{ config.extra.twitter_username }}">
 	<meta name="twitter:title" content="{{ page_title }}">
 	<meta name="twitter:description" content="{{ config.description }}">
-	<meta name="twitter:image:src" content="{{ og_image }}">
+	<meta name="twitter:image" content="{{ og_image }}">
 	<meta name="description" content="{{ config.description }}">
-	<script type="text/javascript" src="/js/lazy-loading.js"></script>
 	<link rel="stylesheet" type="text/css" media="screen" href="/css/master.css" />
-	<link rel="stylesheet" type="text/css" href="/css/toastify.min.css">
 	<link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg" />
 	<link rel="shortcut icon" type="image/png" href="/favicon.png" />
 	<link rel="apple-touch-icon" href="/touch-icon-iphone.png" />
 	<link rel="mask-icon" href="/favicon.svg" />
+	{% if config.extra.mastodon_username %}
 	<link rel="me" href="https://mastodon.social/@{{ config.extra.mastodon_username }}">
+	{% endif %}
 </head>

@@ -5,22 +5,17 @@ public/
 data/photos.json
 static/photos/large/
 static/photos/thumbnail/
-static/photos/tint/
 static/js/photos.js
-# Per-photo static HTML pages (one dir per photo slug)
-static/*/index.html
 
-# Jekyll (legacy, can remove after cleanup)
+# Legacy
 _site
 .sass-cache
 .jekyll-cache
 .jekyll-metadata
+vendor
+.bundle
+.gem
 
 # Editors & OS
 .nova
 .DS_Store
-
-# Ruby (legacy)
-vendor
-.bundle
-.gem

@@ -9,41 +9,32 @@
     {% set target_class = "" %}
 {% endif %}
 
-<li class="item {{ target_class }}" id="id-{{ slug }}" style="background-image: url('/photos/tint/{{ safe_name }}')" title="{{ slug }}">
-
-    <img class="lazyload" data-src="/photos/thumbnail/{{ safe_name }}" src="/photos/tint/{{ safe_name }}" height="{{ photo.height }}" width="{{ photo.width }}" />
-    <span class="full">
-        <span style="background-image: url('/photos/large/{{ safe_name }}')"></span>
-    </span>
+<li class="item {{ target_class }}" id="id-{{ slug }}" title="{{ slug }}">
+    <img loading="lazy"
+         src="/photos/thumbnail/{{ safe_name }}"
+         srcset="/photos/thumbnail/{{ safe_name }} 640w, /photos/large/{{ safe_name }} 2048w"
+         sizes="(min-width: 900px) 33vw, (min-width: 600px) 50vw, 100vw"
+         width="{{ photo.width }}" height="{{ photo.height }}"
+         alt="{{ slug }}" />
     <a class="open" href="/{{ slug }}/" data-target="id-{{ slug }}">Open</a>
     <a class="close" href="/">Close</a>
     {% if photo.prev_slug %}
-        <a href="/{{ photo.prev_slug }}/" data-target="id-{{ photo.prev_slug }}" class="previous" title="Go to previous photo">
-            <span>Previous</span>
-        </a>
+    <a href="/{{ photo.prev_slug }}/" data-target="id-{{ photo.prev_slug }}" class="previous" title="Previous">
+        <span>Previous</span>
+    </a>
     {% endif %}
-
     {% if photo.next_slug %}
-        <a href="/{{ photo.next_slug }}/" data-target="id-{{ photo.next_slug }}" class="next" title="Go to next photo">
-            <span>Next</span>
-        </a>
+    <a href="/{{ photo.next_slug }}/" data-target="id-{{ photo.next_slug }}" class="next" title="Next">
+        <span>Next</span>
+    </a>
     {% endif %}
-    <ul class="links top photodetail-links">
+    <div class="actions">
         {% if config.extra.allow_image_sharing %}
-            <li class="share"><a onClick="shareImage('{{ slug }}','/{{ slug }}/');" title="Share this photo">Share</a></li>
+        <a class="share" href="#" data-share-slug="/{{ slug }}/" data-share-title="{{ slug }}" title="Share">Share</a>
         {% endif %}
         {% if config.extra.allow_original_download %}
-            <li class="download"><a href="/photos/original/{{ safe_name }}" download="{{ safe_name }}" class="" title="Download this image">Download</a></li>
+        <a class="download" href="/photos/original/{{ safe_name }}" download="{{ safe_name }}" title="Download">Download</a>
         {% endif %}
-    </ul>
-
-    <ul class="meta">
-        {% if config.extra.allow_image_sharing %}
-            <li><a onClick="shareImage('{{ slug }}', '/{{ slug }}/')" class="gridview-button share" title="Share this image">Share</a></li>
-        {% endif %}
-        {% if config.extra.allow_original_download %}
-            <li><a href="/photos/original/{{ safe_name }}" download="{{ safe_name }}" class="gridview-button download" title="Download this image">Download</a></li>
-        {% endif %}
-    </ul>
+    </div>
 </li>
 {% endmacro photo %}

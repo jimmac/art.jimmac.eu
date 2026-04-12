@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Pre-build script for Zola photo gallery.
-Replaces Jekyll plugins: photo_filter, photo_pages, rename_photos,
-destroy_originals, strip_extension, uri_escape.
+Scans photos/original/, extracts EXIF dates, generates thumbnails,
+and produces data/photos.json + per-photo static HTML pages.
 
 Requires: pip install Pillow
 """
@@ -22,7 +22,6 @@ except ImportError:
     print("Error: Pillow is required. Install with: pip install Pillow")
     sys.exit(1)
 
-# Configuration
 SOURCE_DIR = Path("photos/original")
 STATIC_DIR = Path("static")
 STATIC_PHOTOS = STATIC_DIR / "photos"
@@ -32,12 +31,11 @@ DATA_DIR = Path("data")
 SIZES = {
     "large": (2048, 2048),
     "thumbnail": (640, 640),
-    "tint": (1, 1),
 }
 
 
 def read_config():
-    """Parse config.toml [extra] section for feature flags."""
+    """Parse config.toml for site settings."""
     config = {}
     in_extra = False
     config_path = Path("config.toml")
@@ -48,24 +46,23 @@ def read_config():
         if stripped == "[extra]":
             in_extra = True
             continue
-        if stripped.startswith("[") and stripped != "[extra]":
+        if stripped.startswith("["):
             in_extra = False
             continue
-        if in_extra and "=" in stripped:
+        if "=" in stripped:
             key, val = stripped.split("=", 1)
             key = key.strip()
             val = val.strip().strip('"')
             if val == "true":
-                config[key] = True
+                val = True
             elif val == "false":
-                config[key] = False
-            else:
+                val = False
+            if in_extra or not stripped.startswith("["):
                 config[key] = val
     return config
 
 
 def normalize_extensions():
-    """Rename .JPG/.JPEG to .jpg/.jpeg."""
     for ext in ("*.JPG", "*.JPEG"):
         for path in SOURCE_DIR.glob(ext):
             new_path = path.with_suffix(path.suffix.lower())
@@ -75,7 +72,6 @@ def normalize_extensions():
 
 
 def get_exif_date(filepath):
-    """Extract DateTimeOriginal from EXIF, fall back to file mtime."""
     try:
         img = Image.open(filepath)
         exif = img._getexif()
@@ -89,13 +85,11 @@ def get_exif_date(filepath):
 
 
 def get_dimensions(filepath):
-    """Get image width and height."""
     with Image.open(filepath) as img:
         return img.width, img.height
 
 
 def slugify(name):
-    """Convert filename to URL slug."""
     slug = Path(name).stem.lower()
     slug = re.sub(r'[^a-z0-9\-]', '-', slug)
     slug = re.sub(r'-+', '-', slug).strip('-')
@@ -103,7 +97,6 @@ def slugify(name):
 
 
 def process_image(src_path, slug):
-    """Generate large, thumbnail, and tint versions of an image."""
     for size_name, max_dims in SIZES.items():
         out_dir = STATIC_PHOTOS / size_name
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -115,183 +108,127 @@ def process_image(src_path, slug):
         with Image.open(src_path) as img:
             if img.mode != "RGB":
                 img = img.convert("RGB")
-
-            if size_name == "tint":
-                resized = img.resize((1, 1), Image.Resampling.LANCZOS)
-            else:
-                img.thumbnail(max_dims, Image.Resampling.LANCZOS)
-                resized = img
-
-            resized.save(out_path, "JPEG", quality=85)
+            img.thumbnail(max_dims, Image.Resampling.LANCZOS)
+            img.save(out_path, "JPEG", quality=85)
 
 
 def generate_photo_html(photo, index, photos, config):
     """Generate the HTML for a single photo <li> element."""
     slug = photo["slug"]
-    filename = photo["filename"]
-    safe_name = quote(filename)
-    width = photo["width"]
-    height = photo["height"]
+    safe_name = quote(photo["filename"])
+    w, h = photo["width"], photo["height"]
 
-    parts = []
-    parts.append(f'<li class="item " id="id-{slug}" '
-                 f"style=\"background-image: url('/photos/tint/{safe_name}')\" "
-                 f'title="{slug}">')
-    parts.append(f'    <img class="lazyload" '
-                 f'data-src="/photos/thumbnail/{safe_name}" '
-                 f'src="/photos/tint/{safe_name}" '
-                 f'height="{height}" width="{width}" />')
-    parts.append(f'    <span class="full">')
-    parts.append(f"        <span style=\"background-image: url('/photos/large/{safe_name}')\"></span>")
-    parts.append(f'    </span>')
-    parts.append(f'    <a class="open" href="/{slug}/" data-target="id-{slug}">Open</a>')
-    parts.append(f'    <a class="close" href="/">Close</a>')
+    lines = [
+        f'<li class="item" id="id-{slug}" title="{slug}">',
+        f'    <img loading="lazy"',
+        f'         src="/photos/thumbnail/{safe_name}"',
+        f'         srcset="/photos/thumbnail/{safe_name} 640w, /photos/large/{safe_name} 2048w"',
+        f'         sizes="(min-width: 900px) 33vw, (min-width: 600px) 50vw, 100vw"',
+        f'         width="{w}" height="{h}" alt="{slug}" />',
+        f'    <a class="open" href="/{slug}/" data-target="id-{slug}">Open</a>',
+        f'    <a class="close" href="/">Close</a>',
+    ]
 
     if index > 0:
-        prev = photos[index - 1]
-        parts.append(f'    <a href="/{prev["slug"]}/" data-target="id-{prev["slug"]}" '
-                     f'class="previous" title="Go to previous photo">')
-        parts.append(f'        <span>Previous</span>')
-        parts.append(f'    </a>')
+        ps = photos[index - 1]["slug"]
+        lines.append(f'    <a href="/{ps}/" data-target="id-{ps}" class="previous" title="Previous"><span>Previous</span></a>')
 
     if index < len(photos) - 1:
-        nxt = photos[index + 1]
-        parts.append(f'    <a href="/{nxt["slug"]}/" data-target="id-{nxt["slug"]}" '
-                     f'class="next" title="Go to next photo">')
-        parts.append(f'        <span>Next</span>')
-        parts.append(f'    </a>')
+        ns = photos[index + 1]["slug"]
+        lines.append(f'    <a href="/{ns}/" data-target="id-{ns}" class="next" title="Next"><span>Next</span></a>')
 
-    parts.append(f'    <ul class="links top photodetail-links">')
+    lines.append(f'    <div class="actions">')
     if config.get("allow_image_sharing"):
-        parts.append(f"        <li class=\"share\"><a onClick=\"shareImage('{slug}','/{slug}/');\""
-                     f' title="Share this photo">Share</a></li>')
+        lines.append(f'        <a class="share" href="#" data-share-slug="/{slug}/" data-share-title="{slug}" title="Share">Share</a>')
     if config.get("allow_original_download"):
-        parts.append(f'        <li class="download"><a href="/photos/original/{safe_name}" '
-                     f'download="{safe_name}" class="" title="Download this image">Download</a></li>')
-    parts.append(f'    </ul>')
+        lines.append(f'        <a class="download" href="/photos/original/{safe_name}" download="{safe_name}" title="Download">Download</a>')
+    lines.append(f'    </div>')
+    lines.append(f'</li>')
 
-    parts.append(f'    <ul class="meta">')
-    if config.get("allow_image_sharing"):
-        parts.append(f"        <li><a onClick=\"shareImage('{slug}', '/{slug}/')\" "
-                     f'class="gridview-button share" title="Share this image">Share</a></li>')
-    if config.get("allow_original_download"):
-        parts.append(f'        <li><a href="/photos/original/{safe_name}" '
-                     f'download="{safe_name}" class="gridview-button download" '
-                     f'title="Download this image">Download</a></li>')
-    parts.append(f'    </ul>')
-    parts.append(f'</li>')
-
-    return "\n".join(parts)
+    return "\n".join(lines)
 
 
 def generate_photos_js(photos, config):
-    """Generate static/js/photos.js with embedded HTML grid."""
-    all_html_parts = []
-    for i, photo in enumerate(photos):
-        html = generate_photo_html(photo, i, photos, config)
-        all_html_parts.append(html)
+    """Generate static/js/photos.js — embeds full grid HTML for direct-link pages."""
+    all_html = "\n".join(
+        generate_photo_html(p, i, photos, config) for i, p in enumerate(photos)
+    )
+    escaped = all_html.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
-    grid_html = "\n".join(all_html_parts)
-    grid_html_escaped = grid_html.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
-
-    js_content = f"""(function(html) {{
+    js = f"""(function(html) {{
   const id = document.currentScript.getAttribute('data-photo-id');
   const url = document.currentScript.getAttribute('data-photo-url');
   const target = document.currentScript.getAttribute('data-target-id');
-  const container = document.querySelector(`#${{target}}`);
-  container.innerHTML = html;
-  openPhoto("id-"+id, url);
-  lazyload();
-}})(`{grid_html_escaped}`);
+  document.querySelector(`#${{target}}`).innerHTML = html;
+  openPhoto("id-" + id, url);
+}})(`{escaped}`);
 """
     STATIC_JS.mkdir(parents=True, exist_ok=True)
-    (STATIC_JS / "photos.js").write_text(js_content)
+    (STATIC_JS / "photos.js").write_text(js)
 
 
 def generate_data_file(photos):
-    """Generate data/photos.json for Zola's load_data()."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-
     data = {"photos": []}
     for i, p in enumerate(photos):
-        prev_slug = photos[i - 1]["slug"] if i > 0 else ""
-        next_slug = photos[i + 1]["slug"] if i < len(photos) - 1 else ""
         data["photos"].append({
             "slug": p["slug"],
             "filename": p["filename"],
             "width": p["width"],
             "height": p["height"],
-            "prev_slug": prev_slug,
-            "next_slug": next_slug,
+            "prev_slug": photos[i - 1]["slug"] if i > 0 else "",
+            "next_slug": photos[i + 1]["slug"] if i < len(photos) - 1 else "",
         })
-
     (DATA_DIR / "photos.json").write_text(json.dumps(data, indent=2))
 
 
-def generate_photo_page(photo, config):
-    """Generate a static HTML page for a single photo at static/{slug}/index.html."""
+def generate_photo_page(photo, index, photos, config, output_base):
+    """Generate a static HTML page for direct-link access to a photo."""
     slug = photo["slug"]
-    filename = photo["filename"]
-    safe_name = quote(filename)
-    title = slug
+    safe_name = quote(photo["filename"])
     site_title = config.get("title", "art.jimmac.eu")
     description = config.get("description", "")
     base_url = config.get("base_url", "")
     og_image = f"{base_url}/photos/large/{safe_name}"
     mastodon = config.get("mastodon_username", "")
-    twitter = config.get("twitter_username", "")
-    github = config.get("github_username", "")
-    instagram = config.get("instagram_username", "")
-    custom_link_name = config.get("custom_link_name", "")
-    custom_link_url = config.get("custom_link_url", "")
 
-    # Build the single photo <li> with target class
-    photo_html = generate_photo_html(photo, photo["_index"], photo["_all_photos"], config)
-    # Set target class on this photo
-    photo_html = photo_html.replace(f'<li class="item " id="id-{slug}"',
-                                    f'<li class="item target" id="id-{slug}"', 1)
+    photo_html = generate_photo_html(photo, index, photos, config)
+    photo_html = photo_html.replace(
+        f'<li class="item" id="id-{slug}"',
+        f'<li class="item target" id="id-{slug}"', 1
+    )
 
     # Social links
-    social_links = []
-    if config.get("allow_order_sort_change"):
-        social_links.append('<li class="sort"><a rel="me" href="#" title="Reverse sort order">Sort</a></li>')
-    if config.get("show_rss_feed"):
-        social_links.append(f'<li class="rss"><a rel="alternate" type="application/rss+xml" href="{base_url}/feed.xml" title="RSS Feed">RSS Feed</a></li>')
-    if twitter:
-        social_links.append(f'<li class="twitter"><a rel="me" href="https://twitter.com/{twitter}" title="@{twitter} on Twitter">Twitter</a></li>')
+    social = []
     if mastodon:
-        social_links.append(f'<li class="mastodon"><a rel="me" href="https://mastodon.social/@{mastodon}" title="@{mastodon} on Mastodon">Mastodon</a></li>')
+        social.append(f'<li class="mastodon"><a rel="me" href="https://mastodon.social/@{mastodon}" title="Mastodon">Mastodon</a></li>')
+    github = config.get("github_username", "")
     if github:
-        social_links.append(f'<li class="github"><a rel="me" href="https://github.com/{github}" title="@{github} on Github">Github</a></li>')
+        social.append(f'<li class="github"><a rel="me" href="https://github.com/{github}" title="Github">Github</a></li>')
+    instagram = config.get("instagram_username", "")
     if instagram:
-        social_links.append(f'<li class="instagram"><a rel="me" href="https://instagram.com/{instagram}" title="@{instagram} on Instagram">Instagram</a></li>')
-    if custom_link_url and custom_link_name:
-        social_links.append(f'<li class="link"><a rel="me" href="{custom_link_url}" title="{custom_link_name}">{custom_link_name}</a></li>')
-    social_html = "\n\t\t\t".join(social_links)
-
-    # Inline JS (same as templates/javascript.html)
-    allow_sort_js = ""
-    if config.get("allow_order_sort_change"):
-        allow_sort_js = """var parent = document.getElementById('target');
-    for (var i = 1; i < parent.childNodes.length; i++){
-        parent.insertBefore(parent.childNodes[i], parent.firstChild);
-    }"""
-
-    share_text = f"I found a cool photo over at {site_title}! Check it out!"
+        social.append(f'<li class="instagram"><a rel="me" href="https://instagram.com/{instagram}" title="Instagram">Instagram</a></li>')
+    cname = config.get("custom_link_name", "")
+    curl = config.get("custom_link_url", "")
+    if cname and curl:
+        social.append(f'<li class="link"><a rel="me" href="{curl}" title="{cname}">{cname}</a></li>')
+    social_html = "\n\t\t".join(social)
 
     noindex = ""
     if not config.get("allow_indexing", True):
         noindex = '\n\t<meta name="robots" content="noindex" />'
 
-    page_html = f"""<!doctype html>
+    share_text = f"Check out this photo at {site_title}!"
+
+    page = f"""<!doctype html>
 <html class="notranslate" translate="no">
 <head>
 \t<meta charset="utf-8">
 \t<meta name="google" content="notranslate" />
 \t<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">{noindex}
-\t<title data-title="{site_title}">{title}</title>
+\t<title data-title="{site_title}">{slug}</title>
 \t<link rel="alternate" type="application/rss+xml" title="RSS Feed" href="{base_url}/feed.xml">
-\t<meta property="og:title" content="{title}">
+\t<meta property="og:title" content="{slug}">
 \t<meta property="og:type" content="website">
 \t<meta property="og:url" content="{base_url}/{slug}/">
 \t<meta property="og:image" content="{og_image}">
@@ -299,14 +236,11 @@ def generate_photo_page(photo, config):
 \t<meta property="og:description" content="{description}">
 \t<meta name="thumbnail" content="{og_image}">
 \t<meta name="twitter:card" content="summary_large_image">
-\t<meta name="twitter:site" content="{twitter}">
-\t<meta name="twitter:title" content="{title}">
+\t<meta name="twitter:title" content="{slug}">
 \t<meta name="twitter:description" content="{description}">
-\t<meta name="twitter:image:src" content="{og_image}">
+\t<meta name="twitter:image" content="{og_image}">
 \t<meta name="description" content="{description}">
-\t<script type="text/javascript" src="/js/lazy-loading.js"></script>
 \t<link rel="stylesheet" type="text/css" media="screen" href="/css/master.css" />
-\t<link rel="stylesheet" type="text/css" href="/css/toastify.min.css">
 \t<link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg" />
 \t<link rel="shortcut icon" type="image/png" href="/favicon.png" />
 \t<link rel="apple-touch-icon" href="/touch-icon-iphone.png" />
@@ -314,184 +248,88 @@ def generate_photo_page(photo, config):
 \t<link rel="me" href="https://mastodon.social/@{mastodon}">
 </head>
 <body>
-\t<ul class="grid" id="target">
+\t<ul class="grid" id="grid">
 {photo_html}
 \t</ul>
-\t<ul class="links bottom">
-\t\t\t{social_html}
-\t\t</ul>
+\t<ul class="links">
+\t\t{social_html}
+\t</ul>
 <script>
-  const ESCAPE = 27;
-  const RIGHT = 39;
-  const LEFT = 37;
-  const UP = 38;
-  const DOWN = 40;
   const TARGET_CLASS = 'target';
-
-  document.addEventListener('touchstart', handleTouchStart, false);
-  document.addEventListener('touchmove', handleTouchMove, false);
-
-  var xDown = null;
-
-  function getTouches(evt) {{
-      return evt.touches || evt.originalEvent.touches;
-  }}
-
-  function handleTouchStart(evt) {{
-      const firstTouch = getTouches(evt)[0];
-      xDown = firstTouch.clientX;
-  }};
-
-  function handleTouchMove(evt) {{
-      if ( ! xDown ) {{ return; }}
-      var xUp = evt.touches[0].clientX;
-      var xDiff = xDown - xUp;
-      if ( xDiff > 0 ) {{ clickNavigationButton('.next'); }}
-      else {{ clickNavigationButton('.previous'); }}
-      xDown = null;
-      yDown = null;
-  }};
-
+  let xDown = null;
+  document.addEventListener('touchstart', (e) => {{ xDown = e.touches[0].clientX; }});
+  document.addEventListener('touchmove', (e) => {{
+    if (!xDown) return;
+    const diff = xDown - e.touches[0].clientX;
+    if (diff > 0) clickNav('.next'); else clickNav('.previous');
+    xDown = null;
+  }});
   const shareImage = (title, url) => {{
-    if (navigator.canShare) {{
-      navigator.share({{ title: title, text: '{share_text}', url: url }})
-    }} else {{
-      navigator.clipboard.writeText(`{share_text}\\n\\n${{window.location.origin}}${{url}}`);
-      Toastify({{ text: "Copied to clipboard", duration: 3000, style: {{ background: "rgba(0, 0, 0, 0.7)" }} }}).showToast();
-    }}
-  }}
-
-  const clickNavigationButton = (buttonClass) => {{
-    const id = window.history.state && window.history.state.id;
-    if (id) {{
-      const selector = `#${{id}} ${{buttonClass}}`;
-      const button = document.querySelector(selector);
-      button && button.click();
-    }}
-  }}
-
+    const text = '{share_text}';
+    if (navigator.canShare) {{ navigator.share({{ title, text, url }}); }}
+    else {{ navigator.clipboard.writeText(`${{text}}\\n\\n${{window.location.origin}}${{url}}`); }}
+  }};
+  const clickNav = (cls) => {{
+    const id = window.history.state?.id;
+    if (id) {{ const btn = document.querySelector(`#${{id}} ${{cls}}`); btn?.click(); }}
+  }};
   const openPhoto = (id, href) => {{
     const photo = document.getElementById(id);
-    const title = photo.getAttribute('title');
     removeTargetClass();
     photo.classList.add(TARGET_CLASS);
-    document.title = title;
-    if (href) {{ window.history.pushState({{id: id}}, '', href); }}
-  }}
-
+    const img = photo.querySelector('img');
+    if (img) {{
+      img.dataset.thumb = img.src;
+      img.dataset.srcset = img.getAttribute('srcset') || '';
+      img.dataset.sizes = img.getAttribute('sizes') || '';
+      img.removeAttribute('srcset');
+      img.removeAttribute('sizes');
+      img.src = img.dataset.thumb.replace('/photos/thumbnail/', '/photos/large/');
+    }}
+    document.title = photo.title;
+    if (href) window.history.pushState({{ id }}, '', href);
+  }};
   const closePhoto = (href) => {{
-    const title = document.querySelector('head title').getAttribute('data-title');
+    document.querySelectorAll(`.${{TARGET_CLASS}} img[data-thumb]`).forEach(img => {{
+      img.src = img.dataset.thumb;
+      if (img.dataset.srcset) img.setAttribute('srcset', img.dataset.srcset);
+      if (img.dataset.sizes) img.setAttribute('sizes', img.dataset.sizes);
+      delete img.dataset.thumb; delete img.dataset.srcset; delete img.dataset.sizes;
+    }});
     removeTargetClass();
-    document.title = title;
-    if (href) {{ window.history.pushState({{}}, '', href); }}
-  }}
-
+    document.title = document.querySelector('title').dataset.title;
+    if (href) window.history.pushState({{}}, '', href);
+  }};
   const removeTargetClass = () => {{
-    let targets = document.querySelectorAll(`.${{TARGET_CLASS}}`);
-    targets.forEach((target) => {{ target.classList.remove(TARGET_CLASS); }});
-  }}
-
-  const handleClick = (selector, event, callback) => {{
-    if (event.target.matches(selector)) {{ callback(); event.preventDefault(); }}
-  }}
-
-  const handleKey = (keyCode, event, callback) => {{
-    if (event.keyCode === keyCode) {{ callback(); event.preventDefault(); }}
-  }}
-
-  const reverseSorting = () => {{
-    {allow_sort_js}
-  }}
-
-  window.onpopstate = function(event) {{
-    if (event.state && event.state.id) {{ openPhoto(event.state.id, null); }}
-    else {{ closePhoto(null); }}
-  }}
-
-  document.addEventListener('keydown', (event) => {{
-    handleKey(ESCAPE, event, () => {{ clickNavigationButton('.close'); }});
-    handleKey(RIGHT, event, () => {{ clickNavigationButton('.next'); }});
-    handleKey(LEFT, event, () => {{ clickNavigationButton('.previous'); }});
-    handleKey(UP, event, () => {{ reverseSorting(); }});
-    handleKey(DOWN, event, () => {{ reverseSorting(); }});
+    document.querySelectorAll(`.${{TARGET_CLASS}}`).forEach(el => el.classList.remove(TARGET_CLASS));
+  }};
+  window.onpopstate = (e) => {{
+    if (e.state?.id) openPhoto(e.state.id, null); else closePhoto(null);
+  }};
+  document.addEventListener('keydown', (e) => {{
+    if (e.key === 'Escape') {{ clickNav('.close'); e.preventDefault(); }}
+    if (e.key === 'ArrowRight') {{ clickNav('.next'); e.preventDefault(); }}
+    if (e.key === 'ArrowLeft') {{ clickNav('.previous'); e.preventDefault(); }}
   }});
-
-  document.addEventListener('click', (event) => {{
-    handleClick('[data-target][href]', event, () => {{
-      const id = event.target.getAttribute('data-target');
-      const href = event.target.getAttribute('href');
-      openPhoto(id, href);
-    }});
-    handleClick('[href].close', event, () => {{
-      const href = event.target.getAttribute('href');
-      closePhoto(href);
-    }});
-    handleClick('ul.links li.sort a', event, () => {{ reverseSorting(); }});
+  document.addEventListener('click', (e) => {{
+    const t = e.target.closest('[data-target][href]');
+    if (t) {{ e.preventDefault(); openPhoto(t.dataset.target, t.getAttribute('href')); return; }}
+    if (e.target.matches('.close[href]')) {{ e.preventDefault(); closePhoto(e.target.getAttribute('href')); return; }}
+    const s = e.target.closest('[data-share-slug]');
+    if (s) {{ e.preventDefault(); shareImage(s.dataset.shareTitle, s.dataset.shareSlug); }}
   }});
-
-  lazyload();
 </script>
-\t\t<script type="text/javascript" src="/js/toastify.js"></script>
-\t\t<script src="/js/photos.js" data-photo-id="{slug}" data-photo-url="/{slug}/" data-target-id="target"></script>
+\t<script src="/js/photos.js" data-photo-id="{slug}" data-photo-url="/{slug}/" data-target-id="grid"></script>
 </body>
 </html>
 """
-    out_dir = STATIC_DIR / slug
+    out_dir = output_base / slug
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "index.html").write_text(page_html)
+    (out_dir / "index.html").write_text(page)
 
 
-def generate_photos_js(photos, config):
-    """Generate static/js/photos.js with embedded HTML grid."""
-    all_html_parts = []
-    for i, photo in enumerate(photos):
-        html = generate_photo_html(photo, i, photos, config)
-        all_html_parts.append(html)
-
-    grid_html = "\n".join(all_html_parts)
-    grid_html_escaped = grid_html.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
-
-    js_content = f"""(function(html) {{
-  const id = document.currentScript.getAttribute('data-photo-id');
-  const url = document.currentScript.getAttribute('data-photo-url');
-  const target = document.currentScript.getAttribute('data-target-id');
-  const container = document.querySelector(`#${{target}}`);
-  container.innerHTML = html;
-  openPhoto("id-"+id, url);
-  lazyload();
-}})(`{grid_html_escaped}`);
-"""
-    STATIC_JS.mkdir(parents=True, exist_ok=True)
-    (STATIC_JS / "photos.js").write_text(js_content)
-
-
-def main():
-    if not SOURCE_DIR.exists():
-        print(f"Error: Source directory '{SOURCE_DIR}' not found.")
-        sys.exit(1)
-
-    config = read_config()
-    # Also pass top-level config values for photo page generation
-    config_path = Path("config.toml")
-    if config_path.exists():
-        for line in config_path.read_text().splitlines():
-            stripped = line.strip()
-            if stripped.startswith("["):
-                break
-            if "=" in stripped:
-                key, val = stripped.split("=", 1)
-                key = key.strip()
-                val = val.strip().strip('"')
-                config[key] = val
-
-    print("=== Zola Pre-build Script ===\n")
-
-    # Step 1: Normalize extensions
-    print("1. Normalizing file extensions...")
-    normalize_extensions()
-
-    # Step 2: Scan photos and extract metadata
-    print("2. Scanning photos and extracting EXIF data...")
+def scan_and_sort_photos():
+    """Scan source directory and return sorted photo list."""
     jpg_files = sorted(SOURCE_DIR.glob("*.jpg"))
     if not jpg_files:
         print("   No JPG files found!")
@@ -510,12 +348,39 @@ def main():
             "exif_date": exif_date,
             "source_path": filepath,
         })
+
+    photos.sort(key=lambda p: p["exif_date"], reverse=True)
+    return photos
+
+
+def main():
+    if not SOURCE_DIR.exists():
+        print(f"Error: Source directory '{SOURCE_DIR}' not found.")
+        sys.exit(1)
+
+    config = read_config()
+
+    # --pages mode: only generate photo pages into public/
+    if len(sys.argv) > 1 and sys.argv[1] == "--pages":
+        output_base = Path("public")
+        print("=== Generating photo pages into public/ ===\n")
+        photos = scan_and_sort_photos()
+        print(f"   Found {len(photos)} photos")
+        for i, photo in enumerate(photos):
+            generate_photo_page(photo, i, photos, config, output_base)
+        print(f"   Generated {len(photos)} photo pages")
+        return
+
+    # Normal pre-build mode
+    print("=== Zola Pre-build Script ===\n")
+
+    print("1. Normalizing file extensions...")
+    normalize_extensions()
+
+    print("2. Scanning photos and extracting EXIF data...")
+    photos = scan_and_sort_photos()
     print(f"   Found {len(photos)} photos")
 
-    # Sort by EXIF date, newest first
-    photos.sort(key=lambda p: p["exif_date"], reverse=True)
-
-    # Step 3: Process images
     print("3. Processing images...")
     for i, photo in enumerate(photos):
         sys.stdout.write(f"\r   Processing {i+1}/{len(photos)}: {photo['filename']}...")
@@ -523,7 +388,6 @@ def main():
         process_image(photo["source_path"], photo["slug"])
     print("\n   Done!")
 
-    # Step 4: Copy originals if downloads enabled
     if config.get("allow_original_download"):
         print("4. Copying originals for download...")
         orig_dir = STATIC_PHOTOS / "original"
@@ -536,21 +400,11 @@ def main():
     else:
         print("4. Skipping originals (download disabled)")
 
-    # Step 5: Generate data file for Zola's load_data()
     print("5. Generating data/photos.json...")
     generate_data_file(photos)
 
-    # Step 6: Generate photos.js
     print("6. Generating photos.js...")
     generate_photos_js(photos, config)
-
-    # Step 7: Generate individual photo pages as static HTML
-    print("7. Generating photo pages...")
-    for i, photo in enumerate(photos):
-        photo["_index"] = i
-        photo["_all_photos"] = photos
-        generate_photo_page(photo, config)
-    print(f"   Generated {len(photos)} photo pages")
 
     print(f"\n=== Pre-build complete: {len(photos)} photos processed ===")
 
