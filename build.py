@@ -447,14 +447,30 @@ def generate_javascript(config):
   }};
 
   const tintCanvas = document.createElement('canvas');
-  tintCanvas.width = tintCanvas.height = 1;
   const tintCtx = tintCanvas.getContext('2d', {{ willReadFrequently: true }});
 
   const avgColor = (img) => {{
     try {{
-      tintCtx.drawImage(img, 0, 0, 1, 1);
-      const [r, g, b] = tintCtx.getImageData(0, 0, 1, 1).data;
-      return `rgb(${{r}},${{g}},${{b}})`;
+      const w = Math.min(img.naturalWidth, 64);
+      const h = Math.min(img.naturalHeight, 64);
+      tintCanvas.width = w;
+      tintCanvas.height = h;
+      tintCtx.drawImage(img, 0, 0, w, h);
+      const data = tintCtx.getImageData(0, 0, w, h).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let x = 0; x < w; x++) {{
+        for (const y of [0, h - 1]) {{
+          const i = (y * w + x) * 4;
+          r += data[i]; g += data[i+1]; b += data[i+2]; n++;
+        }}
+      }}
+      for (let y = 1; y < h - 1; y++) {{
+        for (const x of [0, w - 1]) {{
+          const i = (y * w + x) * 4;
+          r += data[i]; g += data[i+1]; b += data[i+2]; n++;
+        }}
+      }}
+      return `rgb(${{Math.round(r/n)}},${{Math.round(g/n)}},${{Math.round(b/n)}})`;
     }} catch (e) {{ return null; }}
   }};
 
