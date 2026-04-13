@@ -1,8 +1,8 @@
 ---
 author: Jakub Steiner
 software:
-  - Blender
-  - GIMP
+  - Aseprite
+  - Pixaki
 ---
 # Toolbox Level
 

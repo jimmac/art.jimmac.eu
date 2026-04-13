@@ -2,7 +2,6 @@
 author: Jakub Steiner
 software:
   - Blender
-  - GIMP
 ---
 # Libadwaita Art Piece
 

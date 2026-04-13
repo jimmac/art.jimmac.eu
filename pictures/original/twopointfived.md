@@ -2,7 +2,7 @@
 author: Jakub Steiner
 software:
   - Blender
-  - GIMP
+  - Eevee
 ---
 # 2.5D
 

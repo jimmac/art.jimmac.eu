@@ -2,7 +2,6 @@
 author: Jakub Steiner
 software:
   - Blender
-  - GIMP
 ---
 # Elgato Stream Deck
 
