@@ -254,7 +254,13 @@ def scan_and_sort_pictures():
         else:
             pictures[-1].update({"has_metadata": False, "title": None, "description": None})
 
-    pictures.sort(key=lambda p: p["exif_date"], reverse=True)
+    def sort_key(p):
+        d = p["exif_date"]
+        year = p.get("year")
+        if year is not None:
+            d = d.replace(year=year)
+        return d
+    pictures.sort(key=sort_key, reverse=True)
     return pictures
 
 
