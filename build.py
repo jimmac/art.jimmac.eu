@@ -314,7 +314,7 @@ def copy_static_assets():
                 shutil.rmtree(dst)
             shutil.copytree(src, dst)
 
-    for filename in ("favicon.svg", "favicon.png", "social-preview.png", "touch-icon-iphone.png"):
+    for filename in ("favicon.png", "social-preview.png", "touch-icon-iphone.png"):
         src = STATIC_DIR / filename
         if src.exists():
             shutil.copy2(src, OUTPUT_DIR / filename)
@@ -762,10 +762,8 @@ def generate_index_html(pictures, config):
     <meta name="twitter:image" content="{base_url}/social-preview.png">
     <meta name="description" content="{description}">{mastodon_link}
     <link rel="stylesheet" href="/css/master.css">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/touch-icon-iphone.png">
-    <link rel="mask-icon" href="/favicon.svg">
 </head>
 <body>
   <main>
@@ -793,7 +791,6 @@ def generate_404_html(config):
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Not Even a Stopped Clock</title>
   <link rel="stylesheet" href="/css/master.css">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
 </head>
 <body>
