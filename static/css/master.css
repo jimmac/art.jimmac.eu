@@ -21,6 +21,7 @@
 	--grid-radius: 8px;
 	--text-size: 10pt;
 	--border-radius: 32px;
+	--caption-scrim: linear-gradient(to bottom, transparent, rgba(0, 0, 0, .8));
 
 	@media (prefers-color-scheme: dark) {
 		--bg: #000;
@@ -215,37 +216,71 @@ body {
 				align-items: flex-start;
 				gap: 4px;
 				position: fixed;
-				left: var(--link-offset);
-				bottom: var(--link-offset);
-				right: auto;
+				left: 0;
+				right: 0;
+				bottom: 0;
 				top: auto;
 				color: #fff;
 				z-index: 21;
 				transition: opacity .5s ease-out;
 				pointer-events: auto;
-				margin: 6rem;
+				padding: 10rem;
 
 				&.faded {
 					opacity: 0;
 					pointer-events: none;
 					& > * { animation: none; }
 				}
+
+				&::before {
+					content: '';
+					position: absolute;
+					left: 0;
+					right: 0;
+					bottom: 0;
+					height: 50vh;
+					background: var(--caption-scrim);
+					z-index: -1;
+					pointer-events: none;
+					animation: fade-in calc(var(--transition-duration) * 2) ease-out both;
+				}
 			}
 
 			& .caption-title,
-			& .caption-desc,
-			& .caption-software {
-				display: inline;
-				background: rgba(0, 0, 0, .6);
-				box-decoration-break: clone;
-				-webkit-box-decoration-break: clone;
-				padding: 4px 8px;
-				border-radius: 4px;
+			& .caption-desc {
+				display: block;
 				animation: caption-in var(--transition-duration) var(--ease-bounce) both;
+				max-width: 70rem;
 			}
 			& .caption-title { font-size: calc(var(--text-size) * 2); font-weight: 900; line-height: 1.8; animation-delay: var(--transition-duration); }
 			& .caption-desc { font-size: calc(var(--text-size) * 1.5); font-weight: 400; line-height: 1.8; animation-delay: calc(var(--transition-duration) + .1s); }
-			& .caption-software { font-size: calc(var(--text-size) * 1); line-height: 1.8; opacity: .7; animation-delay: calc(var(--transition-duration) + .2s); }
+
+			& .caption-meta {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: baseline;
+				margin-top: 1rem;
+				gap: 12px;
+				animation: caption-in var(--transition-duration) var(--ease-bounce) both;
+				animation-delay: calc(var(--transition-duration) + .2s);
+			}
+			& .caption-year {
+				font-size: calc(var(--text-size) * .85);
+				opacity: .5;
+				font-weight: 400;
+			}
+			& .caption-meta .badge {
+				display: inline-block;
+				font-size: calc(var(--text-size) * .75);
+				font-weight: 600;
+				letter-spacing: .05em;
+				text-transform: uppercase;
+				padding: 2px 6px;
+				border: 1px solid rgba(255, 255, 255, .4);
+				border-radius: 4px;
+				line-height: 1.4;
+				opacity: .8;
+			}
 
 			& .caption-pin {
 				all: unset;
@@ -300,11 +335,7 @@ body {
 			& .next     { cursor: e-resize; }
 
 			& .caption {
-				left: 0;
-				right: 0;
-				bottom: 0;
-				margin: 1rem;
-				max-width: none;
+				padding: 1rem;
 			}
 		}
 	}

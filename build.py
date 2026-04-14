@@ -366,9 +366,15 @@ def generate_picture_html(pic, index, pictures, config):
             lines.append(f'            {pin_btn}')
         if pic.get("description"):
             lines.append(f'            <span class="caption-desc">{inline_markdown(pic["description"])}</span>')
-        if pic.get("software"):
-            sw = ", ".join(pic["software"])
-            lines.append(f'            <span class="caption-software">{html_escape(sw)}</span>')
+        year = pic.get("exif_date")
+        software = pic.get("software")
+        if year or software:
+            meta_parts = ""
+            if year:
+                meta_parts += f'<span class="caption-year">{year.year}</span>'
+            if software:
+                meta_parts += "".join(f'<span class="badge">{html_escape(s)}</span>' for s in software)
+            lines.append(f'            <span class="caption-meta">{meta_parts}</span>')
         lines.append(f'          </figcaption>')
 
     lines.append(f'        </figure>')
