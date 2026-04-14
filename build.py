@@ -510,7 +510,19 @@ def generate_javascript(config):
     }}
     clearTimeout(captionTimer);
     if (!captionPinned) {{
-      captionTimer = setTimeout(() => caption.classList.add('faded'), 2000);
+      // Calculate dynamic timeout based on caption text length
+      const title = caption.querySelector('.caption-title');
+      const desc = caption.querySelector('.caption-desc');
+      let charCount = 0;
+      if (title) charCount += title.textContent.length;
+      if (desc) charCount += desc.textContent.length;
+
+      // Base calculation: ~25 characters per second (roughly 5 words/sec)
+      // Min: 2s for very short captions, Max: 6s for very long captions
+      const baseTimeout = charCount * (1000 / 25);
+      const timeout = Math.max(2000, Math.min(6000, baseTimeout));
+
+      captionTimer = setTimeout(() => caption.classList.add('faded'), timeout);
     }}
   }};
 
