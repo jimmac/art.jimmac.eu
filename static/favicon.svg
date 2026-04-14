@@ -131,19 +131,11 @@
        inkscape:collect="always"
        id="linearGradient288">
       <stop
-         style="stop-color:#3584e4;stop-opacity:1"
+         style="stop-color:#e67e22;stop-opacity:1"
          offset="0"
          id="stop284" />
       <stop
-         style="stop-color:#9141ac;stop-opacity:1"
-         offset="0.25964203"
-         id="stop356" />
-      <stop
-         style="stop-color:#e01b24;stop-opacity:1"
-         offset="0.60952586"
-         id="stop358" />
-      <stop
-         style="stop-color:#ff7800;stop-opacity:1"
+         style="stop-color:#e74c8b;stop-opacity:1"
          offset="1"
          id="stop286" />
     </linearGradient>
