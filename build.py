@@ -184,11 +184,19 @@ def parse_sidecar(sidecar_path):
     if isinstance(software, str):
         software = [software]
 
+    year = meta.get("year")
+    if year is not None:
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = None
+
     return {
         "title": title,
         "description": description if description else None,
         "author": meta.get("author"),
         "software": software,
+        "year": year,
         "tags": meta.get("tags", []) if isinstance(meta.get("tags"), list) else [meta["tags"]] if "tags" in meta else [],
         "has_metadata": True,
     }
@@ -366,12 +374,12 @@ def generate_picture_html(pic, index, pictures, config):
             lines.append(f'            {pin_btn}')
         if pic.get("description"):
             lines.append(f'            <span class="caption-desc">{inline_markdown(pic["description"])}</span>')
-        year = pic.get("exif_date")
+        year = pic.get("year") or (pic["exif_date"].year if pic.get("exif_date") else None)
         software = pic.get("software")
         if year or software:
             meta_parts = ""
             if year:
-                meta_parts += f'<span class="caption-year">{year.year}</span>'
+                meta_parts += f'<span class="caption-year">{year}</span>'
             if software:
                 meta_parts += "".join(f'<span class="badge">{html_escape(s)}</span>' for s in software)
             lines.append(f'            <span class="caption-meta">{meta_parts}</span>')

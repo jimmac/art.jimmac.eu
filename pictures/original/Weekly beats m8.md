@@ -1,4 +1,5 @@
 ---
+year: 2022
 author: Jakub Steiner
 software:
   - Aseprite

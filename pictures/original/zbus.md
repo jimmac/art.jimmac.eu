@@ -1,4 +1,5 @@
 ---
+year: 2024
 author: Jakub Steiner
 software:
   - Aseprite

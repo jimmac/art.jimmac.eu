@@ -1,4 +1,5 @@
 ---
+year: 2025
 author: Jakub Steiner
 software:
   - Blender
