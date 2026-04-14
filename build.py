@@ -369,7 +369,7 @@ def generate_picture_html(pic, index, pictures, config):
         lines.append(f'          <figcaption class="caption">')
         pin_btn = '<button class="caption-pin" aria-label="Pin caption" title="Pin caption"></button>'
         if pic.get("title"):
-            lines.append(f'            <strong class="caption-title">{pin_btn}{html_escape(pic["title"])}</strong>')
+            lines.append(f'            <strong class="caption-title">{html_escape(pic["title"])}{pin_btn}</strong>')
         elif pic.get("description"):
             lines.append(f'            {pin_btn}')
         if pic.get("description"):
