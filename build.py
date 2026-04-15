@@ -795,7 +795,7 @@ def generate_index_html(pictures, config):
     cname = config.get("custom_link_name", "")
     curl = config.get("custom_link_url", "")
     if cname and curl:
-        social.append(f'        <li class="link"><a class="button" rel="me" href="{curl}" title="{cname}">{cname}</a></li>')
+        social.append(f'        <li class="avatar"><a class="button" rel="me" href="{curl}" title="{cname}"><img src="/img/avatar.svg" alt="{cname}" /></a></li>')
     social.append(f'        <li class="rss"><a class="button" href="{base_url}/feed.xml" title="RSS Feed">RSS</a></li>')
     social_html = "\n".join(social)
 
