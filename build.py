@@ -411,19 +411,19 @@ def generate_picture_html(pic, index, pictures, config):
 
     if index > 0:
         ps = pictures[index - 1]["slug"]
-        lines.append(f'        <a href="#{ps}" class="previous" title="Previous"><span>Previous</span></a>')
+        lines.append(f'        <a href="#{ps}" class="previous" title="Previous"><span class="button large">Previous</span></a>')
 
     if index < len(pictures) - 1:
         ns = pictures[index + 1]["slug"]
-        lines.append(f'        <a href="#{ns}" class="next" title="Next"><span>Next</span></a>')
+        lines.append(f'        <a href="#{ns}" class="next" title="Next"><span class="button large">Next</span></a>')
 
     lines.append(f'        <div class="actions">')
     if config.get("allow_image_sharing"):
-        lines.append(f'          <a class="share" href="#" data-share-slug="{slug}" data-share-title="{display_name}" title="Share">Share</a>')
+        lines.append(f'          <a class="button share" href="#" data-share-slug="{slug}" data-share-title="{display_name}" title="Share">Share</a>')
     if config.get("allow_original_download"):
         orig_name = quote(pic["source_path"].name)
-        lines.append(f'          <a class="download" href="/pictures/original/{orig_name}" download="{orig_name}" title="Download">Download</a>')
-    lines.append(f'          <a class="close" href="#" title="Close">Close</a>')
+        lines.append(f'          <a class="button download" href="/pictures/original/{orig_name}" download="{orig_name}" title="Download">Download</a>')
+    lines.append(f'          <a class="button close" href="#" title="Close">Close</a>')
     lines.append(f'        </div>')
     lines.append(f'      </li>')
 
@@ -523,6 +523,13 @@ def generate_javascript(config):
     }} else {{
       kids.forEach(c => c.style.animation = 'none');
     }}
+
+    // Show pager buttons
+    const previous = item.querySelector('.previous');
+    const next = item.querySelector('.next');
+    if (previous) previous.classList.remove('faded');
+    if (next) next.classList.remove('faded');
+
     clearTimeout(captionTimer);
     if (!captionPinned) {{
       // Calculate dynamic timeout based on caption text length
@@ -532,12 +539,16 @@ def generate_javascript(config):
       if (title) charCount += title.textContent.length;
       if (desc) charCount += desc.textContent.length;
 
-      // Base calculation: ~25 characters per second (roughly 5 words/sec)
+      // Base calculation: ~32 characters per second (roughly 6.4 words/sec)
       // Min: 2s for very short captions, Max: 6s for very long captions
-      const baseTimeout = charCount * (1000 / 25);
+      const baseTimeout = charCount * (1000 / 32);
       const timeout = Math.max(2000, Math.min(6000, baseTimeout));
 
-      captionTimer = setTimeout(() => caption.classList.add('faded'), timeout);
+      captionTimer = setTimeout(() => {{
+        caption.classList.add('faded');
+        if (previous) previous.classList.add('faded');
+        if (next) next.classList.add('faded');
+      }}, timeout);
     }}
   }};
 
@@ -545,6 +556,13 @@ def generate_javascript(config):
     const caption = item.querySelector('.caption');
     if (!caption) return;
     caption.classList.add('faded');
+
+    // Hide pager buttons
+    const previous = item.querySelector('.previous');
+    const next = item.querySelector('.next');
+    if (previous) previous.classList.add('faded');
+    if (next) next.classList.add('faded');
+
     clearTimeout(captionTimer);
   }};
 
@@ -764,21 +782,21 @@ def generate_index_html(pictures, config):
 
     social = []
     if mastodon:
-        social.append(f'        <li class="mastodon"><a rel="me" href="https://mastodon.social/@{mastodon}" title="Mastodon">Mastodon</a></li>')
+        social.append(f'        <li class="mastodon"><a class="button" rel="me" href="https://mastodon.social/@{mastodon}" title="Mastodon">Mastodon</a></li>')
     github = config.get("github_username", "")
     if github:
-        social.append(f'        <li class="github"><a rel="me" href="https://github.com/{github}" title="Github">Github</a></li>')
+        social.append(f'        <li class="github"><a class="button" rel="me" href="https://github.com/{github}" title="Github">Github</a></li>')
     instagram = config.get("instagram_username", "")
     if instagram:
-        social.append(f'        <li class="instagram"><a rel="me" href="https://instagram.com/{instagram}" title="Instagram">Instagram</a></li>')
+        social.append(f'        <li class="instagram"><a class="button" rel="me" href="https://instagram.com/{instagram}" title="Instagram">Instagram</a></li>')
     pixelfed = config.get("pixelfed_username", "")
     if pixelfed:
-        social.append(f'        <li class="pixelfed"><a rel="me" href="https://pixelfed.social/{pixelfed}" title="Pixelfed">Pixelfed</a></li>')
+        social.append(f'        <li class="pixelfed"><a class="button" rel="me" href="https://pixelfed.social/{pixelfed}" title="Pixelfed">Pixelfed</a></li>')
     cname = config.get("custom_link_name", "")
     curl = config.get("custom_link_url", "")
     if cname and curl:
-        social.append(f'        <li class="link"><a rel="me" href="{curl}" title="{cname}">{cname}</a></li>')
-    social.append(f'        <li class="rss"><a href="{base_url}/feed.xml" title="RSS Feed">RSS</a></li>')
+        social.append(f'        <li class="link"><a class="button" rel="me" href="{curl}" title="{cname}">{cname}</a></li>')
+    social.append(f'        <li class="rss"><a class="button" href="{base_url}/feed.xml" title="RSS Feed">RSS</a></li>')
     social_html = "\n".join(social)
 
     js = generate_javascript(config)
