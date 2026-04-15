@@ -140,6 +140,21 @@ def inline_markdown(text):
     return text
 
 
+def strip_markdown(text):
+    """Strip markdown formatting to plain text (for meta tags)."""
+    # Extract link text from [text](url)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # Remove code backticks
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    # Remove bold markers
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    # Remove italic markers
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'\1', text)
+    return text
+
+
 def parse_sidecar(sidecar_path):
     """Parse a markdown sidecar file with optional YAML-like front matter."""
     text = sidecar_path.read_text(encoding="utf-8")
@@ -845,7 +860,8 @@ def generate_picture_stubs(pictures, config):
     for pic in pictures:
         slug = pic["slug"]
         display_name = html_escape(pic.get("title") or slug)
-        pic_desc = html_escape(pic.get("description") or description)
+        raw_desc = pic.get("description") or description
+        pic_desc = html_escape(strip_markdown(raw_desc))
         safe_name = quote(pic["filename"])
         og_image = f"{base_url}/pictures/large/{safe_name}"
         out_dir = OUTPUT_DIR / slug
