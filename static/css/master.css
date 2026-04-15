@@ -238,7 +238,7 @@ body {
 				color: #fff;
 				z-index: 21;
 				transition: opacity .5s ease-out;
-				pointer-events: auto;
+				pointer-events: none;
 				padding: 10rem;
 
 				&.faded {
@@ -324,7 +324,10 @@ body {
 				}
 			}
 
-			& .caption a { color: inherit; }
+			& .caption a {
+				color: inherit;
+				pointer-events: auto;
+			}
 			& .caption code {
 				background: rgba(255, 255, 255, .15);
 				padding: 1px 4px;
