@@ -512,6 +512,7 @@ def generate_javascript(config):
   let navDirection = null;
   let captionTimer = null;
   let captionPinned = false;
+  let captionManuallyHidden = false;
 
   const showCaption = (item, animate) => {{
     const caption = item.querySelector('.caption');
@@ -524,11 +525,13 @@ def generate_javascript(config):
       kids.forEach(c => c.style.animation = 'none');
     }}
 
-    // Show pager buttons
+    // Show pager and action buttons
     const previous = item.querySelector('.previous');
     const next = item.querySelector('.next');
+    const actions = item.querySelector('.actions');
     if (previous) previous.classList.remove('faded');
     if (next) next.classList.remove('faded');
+    if (actions) actions.classList.remove('faded');
 
     clearTimeout(captionTimer);
     if (!captionPinned) {{
@@ -548,6 +551,7 @@ def generate_javascript(config):
         caption.classList.add('faded');
         if (previous) previous.classList.add('faded');
         if (next) next.classList.add('faded');
+        if (actions) actions.classList.add('faded');
       }}, timeout);
     }}
   }};
@@ -557,11 +561,13 @@ def generate_javascript(config):
     if (!caption) return;
     caption.classList.add('faded');
 
-    // Hide pager buttons
+    // Hide pager and action buttons
     const previous = item.querySelector('.previous');
     const next = item.querySelector('.next');
+    const actions = item.querySelector('.actions');
     if (previous) previous.classList.add('faded');
     if (next) next.classList.add('faded');
+    if (actions) actions.classList.add('faded');
 
     clearTimeout(captionTimer);
   }};
@@ -573,7 +579,13 @@ def generate_javascript(config):
     if (!item) return;
     const caption = item.querySelector('.caption');
     if (!caption) return;
-    caption.classList.contains('faded') ? showCaption(item) : hideCaption(item);
+    if (caption.classList.contains('faded')) {{
+      captionManuallyHidden = false;
+      showCaption(item);
+    }} else {{
+      captionManuallyHidden = true;
+      hideCaption(item);
+    }}
   }};
 
   const setMeta = (prop, content) => {{
@@ -609,6 +621,7 @@ def generate_javascript(config):
     if (!photo) return;
     removeTargetClass();
     captionPinned = false;
+    captionManuallyHidden = false;
     document.querySelectorAll('.caption-pin.pinned').forEach(p => p.classList.remove('pinned'));
     document.body.style.overflow = 'hidden';
     photo.classList.add(TARGET_CLASS);
@@ -700,6 +713,7 @@ def generate_javascript(config):
   }});
 
   document.addEventListener('mousemove', () => {{
+    if (captionManuallyHidden) return;
     const id = currentId();
     if (!id) return;
     const item = document.getElementById(id);
@@ -753,6 +767,11 @@ def generate_javascript(config):
     if (s) {{
       e.preventDefault();
       shareImage(s.dataset.shareTitle, s.dataset.shareSlug);
+      return;
+    }}
+    // Click on empty canvas area toggles caption/buttons visibility
+    if (currentId() && e.target.closest('.' + TARGET_CLASS)) {{
+      toggleCaption();
     }}
   }});
 
