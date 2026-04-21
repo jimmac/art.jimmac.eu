@@ -662,7 +662,7 @@ def generate_javascript(config):
       img.removeAttribute('sizes');
       img.src = img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
     }}
-    showCaption(photo, true);
+    hideCaption(photo);
     document.title = photo.title;
 
     // Force cursor update after navigation
