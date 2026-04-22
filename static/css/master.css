@@ -245,7 +245,7 @@ body {
 					left: 0;
 					right: 0;
 					bottom: 0;
-					height: 50vh;
+					height: 66vh;
 					background: var(--caption-scrim);
 					z-index: -1;
 					pointer-events: none;
@@ -259,8 +259,8 @@ body {
 				animation: caption-in var(--transition-duration) var(--ease-bounce) both;
 				max-width: 70rem;
 			}
-			& .caption-title { font-size: calc(var(--text-size) * 2); font-weight: 900; line-height: 1.8; animation-delay: var(--transition-duration); }
-			& .caption-desc { font-size: calc(var(--text-size) * 1.5); font-weight: 400; line-height: 1.8; animation-delay: calc(var(--transition-duration) * 4 / 3); }
+			& .caption-title { font-size: calc(var(--text-size) * 2); font-weight: 900; line-height: 1.8; animation-delay: 0s; }
+			& .caption-desc { font-size: calc(var(--text-size) * 1.5); font-weight: 400; line-height: 1.8; animation-delay: calc(var(--transition-duration) / 3); }
 
 			& .caption-meta {
 				display: flex;
@@ -269,7 +269,7 @@ body {
 				margin-top: 1rem;
 				gap: 12px;
 				animation: caption-in var(--transition-duration) var(--ease-bounce) both;
-				animation-delay: calc(var(--transition-duration) * 5 / 3);
+				animation-delay: calc(var(--transition-duration) * 2 / 3);
 			}
 			& .caption-year {
 				font-size: calc(var(--text-size) * .85);
@@ -303,7 +303,7 @@ body {
 				background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none'%3E%3Cpath d='M3 1.5h10l-1.5 8.5h-7z' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cline x1='8' y1='10.5' x2='8' y2='14.5' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
 				pointer-events: auto;
 				animation: caption-in var(--transition-duration) var(--ease-bounce) both;
-				animation-delay: calc(var(--transition-duration) * 2);
+				animation-delay: var(--transition-duration);
 				opacity: .5;
 				transition: opacity var(--transition-duration) var(--ease-bounce),
 					background-color var(--transition-duration) var(--ease-bounce);

@@ -542,9 +542,7 @@ def generate_javascript(config):
       if (title) charCount += title.textContent.length;
       if (desc) charCount += desc.textContent.length;
 
-      // Base calculation: ~32 characters per second (roughly 6.4 words/sec)
-      // Min: 2s for very short captions, Max: 6s for very long captions
-      const baseTimeout = charCount * (1000 / 32);
+      const baseTimeout = charCount * (1000 / 45);
       const timeout = Math.max(2000, Math.min(6000, baseTimeout));
 
       captionTimer = setTimeout(() => {{
@@ -733,7 +731,23 @@ def generate_javascript(config):
     const id = currentId();
     if (!id) return;
     const item = document.getElementById(id);
-    if (item) showCaption(item);
+    if (!item) return;
+    const cap = item.querySelector('.caption');
+    if (!cap) return;
+    if (cap.classList.contains('faded')) {{
+      showCaption(item, true);
+    }} else {{
+      clearTimeout(captionTimer);
+      captionTimer = setTimeout(() => {{
+        cap.classList.add('faded');
+        const previous = item.querySelector('.previous');
+        const next = item.querySelector('.next');
+        const actions = item.querySelector('.actions');
+        if (previous) previous.classList.add('faded');
+        if (next) next.classList.add('faded');
+        if (actions) actions.classList.add('faded');
+      }}, 2000);
+    }}
   }});
 
   document.addEventListener('click', (e) => {{
