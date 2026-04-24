@@ -90,6 +90,27 @@ def extract_video_thumbnail(src_path, out_path, max_dims, duration):
     )
 
 
+def extract_gif_frame(src_path, out_path, max_dims):
+    """Extract a single frame from the middle of a GIF."""
+    with Image.open(src_path) as img:
+        try:
+            total_frames = getattr(img, 'n_frames', 1)
+        except Exception:
+            total_frames = 1
+        middle_frame = total_frames // 2
+        for frame_num in range(middle_frame):
+            try:
+                img.seek(frame_num)
+            except EOFError:
+                break
+        img.seek(middle_frame)
+        frame = img.copy()
+        if frame.mode not in ("RGB", "RGBA"):
+            frame = frame.convert("RGBA" if "transparency" in img.info else "RGB")
+        frame.thumbnail(max_dims, Image.Resampling.LANCZOS)
+        frame.save(out_path, "WEBP", quality=85)
+
+
 def normalize_extensions():
     for path in SOURCE_DIR.iterdir():
         if path.suffix.lower() in (IMAGE_EXTENSIONS | VIDEO_EXTENSIONS) and path.suffix != path.suffix.lower():
@@ -318,10 +339,16 @@ def process_image(pic):
         out_dir.mkdir(parents=True, exist_ok=True)
 
         if is_gif:
-            out_path = out_dir / f"{slug}.gif"
-            if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
-                continue
-            shutil.copy2(src_path, out_path)
+            if size_name == "large":
+                out_path = out_dir / f"{slug}.gif"
+                if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
+                    continue
+                shutil.copy2(src_path, out_path)
+            else:
+                out_path = out_dir / f"{slug}.webp"
+                if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
+                    continue
+                extract_gif_frame(src_path, out_path, max_dims)
         else:
             out_path = out_dir / f"{slug}.webp"
             if out_path.exists() and out_path.stat().st_mtime > src_path.stat().st_mtime:
@@ -925,7 +952,11 @@ def generate_picture_stubs(pictures, config):
         raw_desc = pic.get("description") or description
         pic_desc = html_escape(strip_markdown(raw_desc))
         safe_name = quote(pic["filename"])
-        og_image = f"{base_url}/pictures/large/{safe_name}"
+        is_gif = pic["source_path"].suffix.lower() == ".gif"
+        if is_gif:
+            og_image = f"{base_url}/pictures/thumbnail/{quote(pic['slug'])}.webp"
+        else:
+            og_image = f"{base_url}/pictures/large/{safe_name}"
         out_dir = OUTPUT_DIR / slug
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "index.html").write_text(f"""<!doctype html>
