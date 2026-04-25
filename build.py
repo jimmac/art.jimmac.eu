@@ -393,8 +393,12 @@ def generate_picture_html(pic, index, pictures, config):
     safe_name = quote(pic["filename"])
     w, h = pic["width"], pic["height"]
     is_video = pic.get("is_video", False)
+    is_gif = pic["source_path"].suffix.lower() == ".gif"
     has_meta = pic.get("has_metadata", False)
     display_name = html_escape(pic.get("title") or slug)
+
+    thumb_name = quote(f"{slug}.webp") if is_gif else safe_name
+    large_name = safe_name
 
     extra_attrs = ""
     if is_video:
@@ -407,8 +411,8 @@ def generate_picture_html(pic, index, pictures, config):
         f'      <li class="item" id="id-{slug}" title="{display_name}"{extra_attrs}>',
         f'        <figure>',
         f'          <img loading="lazy"',
-        f'               src="/pictures/thumbnail/{safe_name}"',
-        f'               srcset="/pictures/thumbnail/{safe_name} 640w, /pictures/large/{safe_name} 2048w"',
+        f'               src="/pictures/thumbnail/{thumb_name}"',
+        f'               srcset="/pictures/thumbnail/{thumb_name} 640w, /pictures/large/{large_name} 2048w"',
         f'               sizes="(min-width: 900px) 33vw, (min-width: 600px) 50vw, 100vw"',
         f'               width="{w}" height="{h}" alt="{display_name}">',
     ]
@@ -683,9 +687,11 @@ def generate_javascript(config):
       img.dataset.thumb = img.src;
       img.dataset.srcset = img.getAttribute('srcset') || '';
       img.dataset.sizes = img.getAttribute('sizes') || '';
+      const srcset = img.dataset.srcset;
+      const largeMatch = srcset.match(/(\\/pictures\\/large\\/[^\\s]+)/);
       img.removeAttribute('srcset');
       img.removeAttribute('sizes');
-      img.src = img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
+      img.src = largeMatch ? largeMatch[1] : img.dataset.thumb.replace('/pictures/thumbnail/', '/pictures/large/');
     }}
     hideCaption(photo);
     document.title = photo.title;
