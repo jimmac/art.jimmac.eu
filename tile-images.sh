@@ -26,8 +26,8 @@ for f in "$img1" "$img2"; do
 done
 
 magick \
-  \( "$img1" -gravity center -crop 70%x100%+0+0 +repage \) \
-  \( "$img2" -gravity center -crop 70%x100%+0+0 +repage \) \
+  \( "$img1" -gravity center -crop 90%x100%+0+0 +repage \) \
+  \( "$img2" -gravity center -crop 90%x100%+0+0 +repage \) \
   +append "$output"
 
 echo "Created '$output' ($(identify -format '%wx%h' "$output"))"
