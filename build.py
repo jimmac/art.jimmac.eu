@@ -906,6 +906,7 @@ def generate_index_html(pictures, config):
     <link rel="stylesheet" href="/css/master.css">
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/touch-icon-iphone.png">
+    <script src="https://cdn.counter.dev/script.js" data-id="351fc2c1-521e-4fee-b194-7160cce76150" data-utcoffset="2"></script>
 </head>
 <body>
   <main>
