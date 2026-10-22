@@ -17,19 +17,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/art-builder:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install Pillow
 
       - name: Build site
         run: python3 build.py
