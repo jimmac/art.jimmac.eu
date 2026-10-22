@@ -1,6 +1,9 @@
 # Build output
 public/
 
+# Build cache
+.cache/
+
 # Editors & OS
 .nova
 .DS_Store
