@@ -10,6 +10,7 @@ Requires: pip install Pillow
 import os
 import sys
 import shutil
+import tempfile
 import re
 import subprocess
 import json
@@ -35,6 +36,7 @@ SIZES = {
 
 IMAGE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".bmp", ".gif", ".avif", ".heic", ".heif",
+    ".jxl",
 }
 
 VIDEO_EXTENSIONS = {".mp4", ".webm", ".avi", ".mov"}
@@ -109,6 +111,27 @@ def extract_gif_frame(src_path, out_path, max_dims):
             frame = frame.convert("RGBA" if "transparency" in img.info else "RGB")
         frame.thumbnail(max_dims, Image.Resampling.LANCZOS)
         frame.save(out_path, "WEBP", quality=85)
+
+
+def decode_jxl(src_path):
+    """Decode a JPEG XL file to PNG via djxl, caching the result.
+
+    Returns path to the decoded PNG."""
+    cache_dir = SOURCE_DIR / ".cache"
+    cache_dir.mkdir(exist_ok=True)
+    cache_path = cache_dir / f"{src_path.stem}.png"
+    if (not cache_path.exists()
+            or cache_path.stat().st_mtime < src_path.stat().st_mtime):
+        result = subprocess.run(
+            ["djxl", str(src_path), "-j", str(cache_path)],
+            capture_output=True, timeout=60,
+        )
+        if result.returncode != 0 or not cache_path.exists():
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            print(f"Error: failed to decode {src_path.name} (is djxl installed?)")
+            sys.exit(1)
+    return cache_path
+
 
 
 def normalize_extensions():
@@ -233,6 +256,7 @@ def parse_sidecar(sidecar_path):
         "author": meta.get("author"),
         "software": software,
         "year": year,
+        "pinned": str(meta.get("pinned", "")).lower() in ("true", "yes", "1"),
         "tags": meta.get("tags", []) if isinstance(meta.get("tags"), list) else [meta["tags"]] if "tags" in meta else [],
         "has_metadata": True,
     }
@@ -253,6 +277,12 @@ def scan_and_sort_pictures():
         slug = slugify(filepath.name)
         suffix = filepath.suffix.lower()
         is_video = suffix in VIDEO_EXTENSIONS
+        # Sidecar metadata lives next to the original (source) file
+        sidecar_path = filepath.with_suffix(".md")
+        # JPEG XL sources get decoded to PNG for processing
+        if suffix == ".jxl":
+            filepath = decode_jxl(filepath)
+            suffix = ".png"
 
         if is_video:
             width, height, duration = get_video_info(filepath)
@@ -284,8 +314,7 @@ def scan_and_sort_pictures():
             })
 
         # Check for sidecar metadata file
-        sidecar_path = filepath.with_suffix(".md")
-        if sidecar_path.exists():
+        if sidecar_path is not None and sidecar_path.exists():
             pictures[-1].update(parse_sidecar(sidecar_path))
         else:
             pictures[-1].update({"has_metadata": False, "title": None, "description": None})
@@ -295,7 +324,7 @@ def scan_and_sort_pictures():
         year = p.get("year")
         if year is not None:
             d = d.replace(year=year)
-        return d
+        return (p.get("pinned", False), d)
     pictures.sort(key=sort_key, reverse=True)
     return pictures
 
