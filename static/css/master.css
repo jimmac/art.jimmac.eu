@@ -341,6 +341,16 @@ body {
 	}
 }
 
+/* INTRO — staggered thumbnail pop-in (progressive enhancement).
+   Thumbnails stay invisible until JS reveals them with a fade + scale;
+   without JS (no html.js) the grid renders as plain as ever. */
+
+@media (prefers-reduced-motion: no-preference) {
+	html.js .grid .item:not(.target) img:not(.in) {
+		opacity: 0;
+	}
+}
+
 /* BUTTON BASE — common styles for all button-like elements */
 
 .button {

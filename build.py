@@ -490,6 +490,86 @@ def generate_picture_html(pic, index, pictures, config):
     return "\n".join(lines)
 
 
+def generate_intro_javascript():
+    """Generate the inline JS for the fancy initial load (progressive enhancement).
+
+    Without JS the grid renders as-is. With JS, thumbnails are kept from
+    loading, then each one is loaded back into its slot at a randomly
+    staggered delay, fading in while scaling from 1.2 to 1.
+    """
+    return """<script>
+  // Fancy initial load — a progressive enhancement. Bails out (and unhides
+  // everything) when a lightbox is deep-linked, reduced motion is preferred,
+  // or anything unexpected happens.
+  (function () {
+    const root = document.documentElement;
+    const skip = () => root.classList.remove('js');
+
+    if (location.hash) return skip(); // deep link: go straight to the lightbox
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return skip();
+
+    const imgs = document.querySelectorAll('.grid img');
+    if (!imgs.length) return skip();
+
+    const stash = new WeakMap();
+    const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Fade a thumbnail in, subtly scaling it down into its 1:1 slot
+    const reveal = (img, animate = true) => {
+      if (img.classList.contains('in')) return;
+      img.classList.add('in');
+      if (!animate || reduced()) return;
+      img.animate([
+        { opacity: 0, scale: '1.2' },
+        { opacity: 1, scale: '1' }
+      ], {
+        duration: 600,
+        easing: 'cubic-bezier(.22, 1.07, .36, 1)' // --ease-bounce
+      });
+    };
+
+    try {
+      imgs.forEach((img) => {
+        stash.set(img, {
+          src: img.getAttribute('src'),
+          srcset: img.getAttribute('srcset'),
+          sizes: img.getAttribute('sizes'),
+        });
+        img.addEventListener('load', () => reveal(img));
+        img.addEventListener('error', () => reveal(img, false));
+        img.removeAttribute('src');
+        img.removeAttribute('srcset');
+        img.removeAttribute('sizes');
+      });
+    } catch (e) {
+      imgs.forEach((img) => {
+        const s = stash.get(img);
+        if (!s) return;
+        if (s.src) img.setAttribute('src', s.src);
+        if (s.srcset) img.setAttribute('srcset', s.srcset);
+        if (s.sizes) img.setAttribute('sizes', s.sizes);
+      });
+      return skip();
+    }
+
+    // Let the lightbox fall back to the stashed sources when opened mid-intro
+    window.__introStash = stash;
+
+    // Randomly stagger each thumbnail's load back into its position
+    const spread = Math.min(1600, 18 * imgs.length);
+    imgs.forEach((img) => {
+      setTimeout(() => {
+        if (img.dataset.thumb) return; // the lightbox owns this image right now
+        const s = stash.get(img);
+        if (s.src) img.setAttribute('src', s.src);
+        if (s.srcset) img.setAttribute('srcset', s.srcset);
+        if (s.sizes) img.setAttribute('sizes', s.sizes);
+      }, Math.random() * spread);
+    });
+  })();
+</script>"""
+
+
 def generate_javascript(config):
     """Generate the inline JavaScript for the gallery."""
     site_title = config.get("title", "art.jimmac.eu")
@@ -694,10 +774,11 @@ def generate_javascript(config):
     }}
     const videoSrc = photo.dataset.video;
     const img = photo.querySelector('img');
+    const stashed = (img && window.__introStash) ? window.__introStash.get(img) : null;
     if (img) {{
       const tint = avgColor(img);
       if (tint) photo.style.backgroundColor = tint;
-      updateMeta(photo.title, img.src);
+      updateMeta(photo.title, img.src || (stashed && stashed.src) || '');
     }}
     if (videoSrc) {{
       const video = document.createElement('video');
@@ -713,9 +794,9 @@ def generate_javascript(config):
         figure.appendChild(video);
       }}
     }} else if (img) {{
-      img.dataset.thumb = img.src;
-      img.dataset.srcset = img.getAttribute('srcset') || '';
-      img.dataset.sizes = img.getAttribute('sizes') || '';
+      img.dataset.thumb = img.getAttribute('src') || (stashed && stashed.src) || '';
+      img.dataset.srcset = img.getAttribute('srcset') || (stashed && stashed.srcset) || '';
+      img.dataset.sizes = img.getAttribute('sizes') || (stashed && stashed.sizes) || '';
       const srcset = img.dataset.srcset;
       const largeMatch = srcset.match(/(\\/pictures\\/large\\/[^\\s]+)/);
       img.removeAttribute('srcset');
@@ -911,6 +992,7 @@ def generate_index_html(pictures, config):
     social_html = "\n".join(social)
 
     js = generate_javascript(config)
+    intro_js = generate_intro_javascript()
 
     return f"""<!doctype html>
 <html lang="en" class="notranslate" translate="no">
@@ -933,6 +1015,7 @@ def generate_index_html(pictures, config):
     <meta name="twitter:image" content="{base_url}/social-preview.png">
     <meta name="description" content="{description}">{mastodon_link}
     <link rel="stylesheet" href="/css/master.css">
+    <script>document.documentElement.classList.add('js');</script>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/touch-icon-iphone.png">
     <script src="https://cdn.counter.dev/script.js" data-id="351fc2c1-521e-4fee-b194-7160cce76150" data-utcoffset="2"></script>
@@ -942,6 +1025,7 @@ def generate_index_html(pictures, config):
     <ul class="grid" id="grid" role="list">
 {picture_items}
     </ul>
+{intro_js}
   </main>
   <nav aria-label="Social links">
     <ul class="links">
